@@ -112,6 +112,16 @@ class TripSimulator:
             for stop_id in stop_ids
         ])
 
+        # --- Validate stop order along shape ---
+        # In case stop sequence for trip_id {self.trip_id} does not follow the order of the shape geometry.
+        # Reverse shape if strictly decreasing
+        if np.all(np.diff(stop_distances) <= 0):
+            trip_shape = LineString(list(trip_shape.coords)[::-1])
+            stop_distances = np.array([
+                trip_shape.project(hlp.find_closest_point(trip_shape, stop_geometries[stop_id]))
+                for stop_id in stop_ids
+            ])
+
         arrival_times = stop_times["arrival_offset"].to_numpy()
         departure_times = stop_times["departure_offset"].to_numpy()
         # Compute travel durations vectorized
@@ -193,7 +203,7 @@ class TripSimulator:
 
         self._single_trip_sequence = sequence
 
-    def compute_fleet_operation(self):
+    def compute_fleet_operation(self, transient_regime: bool = False):
         """
         Computes fleet operation using a compact representation:
         - One row per vehicle.
@@ -237,8 +247,13 @@ class TripSimulator:
 
             for veh in vehicle_indices:
                 vehicle_id = f"{self.trip_id}_{veh}"
-                initial_offset = veh * headway
-                trip_start_time = freq_start_sec - initial_offset
+
+                if transient_regime:
+                    # Vehicles are injected after the start time, spaced by headway
+                    trip_start_time = freq_start_sec + veh * headway
+                else:
+                    # Vehicles are in looped operation (may begin before freq_start)
+                    trip_start_time = freq_start_sec - veh * headway
 
                 if vehicle_id not in vehicle_records:
                     vehicle_records[vehicle_id] = {
@@ -253,13 +268,20 @@ class TripSimulator:
                     }
 
                 repetition_start = trip_start_time
-                while repetition_start < freq_end_sec:
+                while repetition_start < freq_end_sec + trip_duration:
+
+                    if repetition_start >= freq_end_sec:
+                        break  # Don't start new trips after end of service
+
                     start_abs = repetition_start
                     end_abs = repetition_start + trip_duration
 
-                    # Clip to frequency interval
+                    # Apply clipping logic based on the transient_regime flag
                     clipped_start = max(start_abs, freq_start_sec)
-                    clipped_end = min(end_abs, freq_end_sec)
+                    if transient_regime:
+                        clipped_end = end_abs
+                    else:
+                        clipped_end = min(end_abs, freq_end_sec)
 
                     if clipped_end <= clipped_start:
                         break  # nothing to store
@@ -341,6 +363,68 @@ class TripSimulator:
 
             record["travel_sequences"] = filled_sequences
             fleet_result.append(record)
+
+        # Make sur the latest not operating session starts at the same hour for every vehicle (end of operating hours)
+
+        # Step 1: Find the latest start time among the last non-operating sessions
+        last_start_seconds = []
+
+        latest_end_time = self.gtfs_manager.frequencies['end_time'].max()
+        latest_end_sec = latest_end_time.hour * 3600 + latest_end_time.minute * 60 + latest_end_time.second
+        latest_start_str = f"{latest_end_sec // 3600:02}:{(latest_end_sec % 3600) // 60:02}:{latest_end_sec % 60:02}"
+
+        for record in vehicle_records.values():
+            sequences = record["travel_sequences"]
+            if not sequences:
+                continue
+
+            last_seq = sequences[-1]
+            if not last_seq.get("operating", True):
+                dt = datetime.strptime(last_seq["start_time"], "%H:%M:%S")
+                this_start_sec = dt.hour * 3600 + dt.minute * 60 + dt.second
+
+                if this_start_sec < latest_end_sec:
+                    # (1) Modify last session to end at latest start
+                    last_seq["end_time"] = latest_start_str
+
+                    # (2) Append new non-operating session to fill the rest of the day
+                    sequences.append({
+                        "start_time": latest_start_str,
+                        "end_time": "23:59:59",
+                        "offset_from_start": 0,
+                        "operating": False
+                    })
+
+        # Compute the latest start time
+        if last_start_seconds:
+            latest_start_sec = max(last_start_seconds)
+            latest_start_str = f"{latest_start_sec // 3600:02}:{(latest_start_sec % 3600) // 60:02}:{latest_start_sec % 60:02}"
+
+            # Step 2: Adjust sequences for all vehicles
+            for record in vehicle_records.values():
+                sequences = record["travel_sequences"]
+                if not sequences:
+                    continue
+
+                last_seq = sequences[-1]
+                if not last_seq.get("operating", True):
+                    dt = datetime.strptime(last_seq["start_time"], "%H:%M:%S")
+                    this_start_sec = dt.hour * 3600 + dt.minute * 60 + dt.second
+
+                    if this_start_sec < latest_start_sec:
+                        # (1) Modify last session to end at latest start
+                        last_seq["end_time"] = latest_start_str
+
+                        # (2) Append new non-operating session to fill the rest of the day
+                        sequences.append({
+                            "start_time": latest_start_str,
+                            "end_time": "23:59:59",
+                            "offset_from_start": 0,
+                            "operating": False
+                        })
+                else:
+                    print(last_seq)
+
 
         self._fleet_operation = fleet_result
 

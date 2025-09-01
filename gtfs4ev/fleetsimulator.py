@@ -81,7 +81,7 @@ class FleetSimulator:
 
     # Fleet Operation
         
-    def compute_fleet_operation(self, use_multiprocessing = False):
+    def compute_fleet_operation(self, use_multiprocessing = False, transient_regime = False):
         """
         Runs the simulation for the selected trips and accumulates the results in a big dataframe.
         Uses parallel processing to speed up computation if 'use_multiprocessing' is True.
@@ -111,7 +111,7 @@ class FleetSimulator:
             counter = 1
             for trip_id in self.trip_ids:
                 tripsim = TripSimulator(gtfs_manager=self.gtfs_manager, trip_id=trip_id)
-                tripsim.compute_fleet_operation()
+                tripsim.compute_fleet_operation(transient_regime = transient_regime)
 
                 fleet_operation = pd.DataFrame(tripsim._fleet_operation)
                 sequence = pd.DataFrame(tripsim._single_trip_sequence)
@@ -136,7 +136,7 @@ class FleetSimulator:
 
     # Fleet trajectory
 
-    def get_fleet_trajectory(self, time_step: int) -> pd.DataFrame:
+    def get_fleet_trajectory(self, time_step: int, transient_regime = False) -> pd.DataFrame:
         """
         Simulation of fleet operation. 
         Warning: Not optimize (recalculation of the fleet operation) 
@@ -156,7 +156,7 @@ class FleetSimulator:
         counter = 1
         for trip_id in self.trip_ids:
             tripsim = TripSimulator(gtfs_manager=self.gtfs_manager, trip_id=trip_id)
-            tripsim.compute_fleet_operation()
+            tripsim.compute_fleet_operation(transient_regime = transient_regime)
 
             sys.stdout.write(f"\r \t Progress: {counter}/{len(self.trip_ids)} trips.")
             sys.stdout.flush()
@@ -217,12 +217,12 @@ class FleetSimulator:
 
 # Helper function (outside the class) to process trips using multiprocessing
 
-def process_trip(trip_id, gtfs_manager, progress_counter, num_trips):
+def process_trip(trip_id, gtfs_manager, progress_counter, num_trips, transient_regime):
     """
     Function to process a single trip. This runs in parallel or sequentially.
     """
     tripsim = TripSimulator(gtfs_manager=gtfs_manager, trip_id=trip_id)
-    tripsim.compute_fleet_operation()
+    tripsim.compute_fleet_operation(transient_regime = transient_regime)
 
     fleet_operation = pd.DataFrame(tripsim._fleet_operation)
     sequence = pd.DataFrame(tripsim._single_trip_sequence)

@@ -274,6 +274,7 @@ class ChargingSimulator:
         charging_need_kWh,
         charge_probability_terminal,
         charge_probability_stop,
+        specific_terminal_ids,
         depot_travel_time_min):
         """
         Simulates charging events based on a given strategy and a vehicle’s travel sequence.
@@ -318,7 +319,7 @@ class ChargingSimulator:
                 "energy_charged_kWh": energy
             }, energy
 
-        # --- Charging Strategy: Terminal ---
+        # --- Charging Strategy: Terminal Random ---
         # Charge opportunistically when a vehicle is parked at the terminal (usually end/start of line).
         if charging_strategy == "terminal_random":
             for event in travel_sequence:
@@ -334,7 +335,7 @@ class ChargingSimulator:
                     charging_events.append(charge_event)
                     remaining_need -= charged
 
-        # --- Charging Strategy: Stop ---
+        # --- Charging Strategy: Stop Random ---
         # Similar to terminal strategy, but happens at intermediate stops.
         elif charging_strategy == "stop_random":
             for event in travel_sequence:
@@ -345,6 +346,28 @@ class ChargingSimulator:
                         event["start_time"],
                         event["duration_h"],
                         "stop",
+                        event["stop_id"]
+                    )
+                    charging_events.append(charge_event)
+                    remaining_need -= charged
+
+        # --- Charging Strategy: Terminal with Specific Stop IDs ---
+        # Only charge at terminals whose stop_id is in the user-specified list
+        elif charging_strategy == "terminal_specific_random":
+            if not specific_terminal_ids:
+                print("WARNING \t 'specific_terminal_ids' list is empty or not provided.")
+            for event in travel_sequence:
+                if remaining_need <= 0:
+                    break
+                if (
+                    event["status"] == "at_terminal"
+                    and event["stop_id"] in specific_terminal_ids
+                    and can_charge(charge_probability_terminal)
+                ):
+                    charge_event, charged = compute_charging_event(
+                        event["start_time"],
+                        event["duration_h"],
+                        "terminal",
                         event["stop_id"]
                     )
                     charging_events.append(charge_event)
@@ -383,6 +406,7 @@ class ChargingSimulator:
             # End-of-day charging: last event
             if remaining_need > 0:
                 last_event = travel_sequence[-1]
+
                 start_dt = datetime.strptime(last_event["start_time"], "%H:%M:%S") + delay
                 end_dt = datetime.strptime(last_event["end_time"], "%H:%M:%S")
 
