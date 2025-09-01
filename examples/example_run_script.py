@@ -69,10 +69,10 @@ if __name__ == "__main__":
     #gtfs.export_to_csv("input/GTFS_Nairobi_cleaned")
 
     # Export a map of a trip or the entire GTFS data (e.g., stops, routes, and trips) as an HTML file 
-    gtfs.generate_network_map("output/GTFS_map_alldata.html")
+    # gtfs.generate_network_map("output/GTFS_map_alldata.html")
 
-    trip_id = "1011F110"
-    gtfs.generate_single_trip_map(trip_id = trip_id, filepath = f"output/GTFS_map_{trip_id}.html", projected = True)
+    # trip_id = "1011F110"
+    # gtfs.generate_single_trip_map(trip_id = trip_id, filepath = f"output/GTFS_map_{trip_id}.html", projected = True)
 
     ###############################################################################
     ############# STEP 2: Simulate the operation of the vehicle fleet ############# 
@@ -92,9 +92,9 @@ if __name__ == "__main__":
 
     # # 2.3) OPTIONAL - Map the spatio-temporal movement of vehicles 
     # # Warning : this might take a very long time and a lot of disk space if many trips are simulated
-    df = fleet_sim.get_fleet_trajectory(time_step=120)
-    df.to_csv(f"output/Mobility_fleet_trajectory.csv", index=True)
-    fleet_sim.generate_fleet_trajectory_map(fleet_trajectory=df, filepath=f"output/Mobility_fleet_trajectory_map.html")
+    # df = fleet_sim.get_fleet_trajectory(time_step=120)
+    # df.to_csv(f"output/Mobility_fleet_trajectory.csv", index=True)
+    # fleet_sim.generate_fleet_trajectory_map(fleet_trajectory=df, filepath=f"output/Mobility_fleet_trajectory_map.html")
 
     ###############################################################################
     ########################## STEP 3: Charging Scenario ########################## 
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     # The strategies are applied in the order provided until each vehicle is fully charged or no further strategy is available.
     # Note: Some strategies require additional parameters, which must be specified accordingly.
 
-    cs.compute_charging_schedule(["terminal_random", "stop_random", "depot_night"], 
+    cs.compute_charging_schedule(["depot_night"], 
         charge_probability_terminal=0.1,
         charge_probability_stop=0.1,
         depot_travel_time_min=[30,15])

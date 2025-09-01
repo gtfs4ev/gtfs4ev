@@ -263,19 +263,21 @@ class ChargingSimulator:
         charging_events.sort(key=lambda e: e["start_time"])
         min_capacity = self._find_minimum_battery_capacity(travel_sequence, charging_events)
 
+        print("Hello")
+
         return {
             "charging_sequence": charging_events,
             "charging_need_kWh": total_need,
             "remaining_need_kWh": remaining,
-            "min_capacity_kWh": min_capacity
+            "min_capacity_kWh": min_capacity,
         }
 
     def _generate_charging_events_for_strategy(self, travel_sequence, charging_strategy, 
         charging_need_kWh,
         charge_probability_terminal,
         charge_probability_stop,
-        specific_terminal_ids,
-        depot_travel_time_min):
+        specific_terminal_ids = None,
+        depot_travel_time_min = [0,0]):
         """
         Simulates charging events based on a given strategy and a vehicle’s travel sequence.
 
