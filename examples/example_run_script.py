@@ -106,10 +106,11 @@ if __name__ == "__main__":
     cs = ChargingSimulator(
         fleet_sim = fleet_sim,
         energy_consumption_kWh_per_km = 0.39,
+        battery_capacity_kWh = 50,
         security_driving_distance_km = 0,
         charging_powers_kW = {
             "depot": [[11,1.0], [22,0.0]],
-            "terminal": [[100,1.0]],
+            "terminal": [[1000,1.0]],
             "stop": [[200, 1.0]]
         }
     )
@@ -118,8 +119,8 @@ if __name__ == "__main__":
     # The strategies are applied in the order provided until each vehicle is fully charged or no further strategy is available.
     # Note: Some strategies require additional parameters, which must be specified accordingly.
 
-    cs.compute_charging_schedule(["depot_night"], 
-        charge_probability_terminal=0.1,
+    cs.compute_charging_schedule(["terminal_random", "depot_night"], 
+        charge_probability_terminal=0.5,
         charge_probability_stop=0.1,
         depot_travel_time_min=[30,15])
 

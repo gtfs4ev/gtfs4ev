@@ -17,7 +17,7 @@ class ChargingSimulator:
     """
     A class simulating the charging of electric vehicles based on the mobility simulation and charging strategy."""
 
-    def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, security_driving_distance_km: float , charging_powers_kW: dict = None):
+    def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, battery_capacity_kWh: float, security_driving_distance_km: float , charging_powers_kW: dict = None):
         """
         Initializes the Charging Simulator.
 
@@ -32,6 +32,7 @@ class ChargingSimulator:
 
         self.fleet_sim = fleet_sim
         self.energy_consumption_kWh_per_km = energy_consumption_kWh_per_km
+        self.battery_capacity_kWh = battery_capacity_kWh
         self.security_driving_distance_km = security_driving_distance_km
         self.charging_powers_kW = charging_powers_kW or {}
 
@@ -61,6 +62,16 @@ class ChargingSimulator:
         if not isinstance(value, (int, float)) or value <= 0:
             raise ValueError("energy_consumption_kWh_per_km must be a positive number.")
         self._energy_consumption_kWh_per_km = value
+
+    @property
+    def battery_capacity_kWh(self):
+        return self._battery_capacity_kWh
+
+    @battery_capacity_kWh.setter
+    def battery_capacity_kWh(self, value):
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise ValueError("battery_capacity_kWh must be a positive number.")
+        self._battery_capacity_kWh = value
 
     @property
     def security_driving_distance_km(self):
@@ -151,9 +162,14 @@ class ChargingSimulator:
 
         self._charging_schedule_pervehicle = pd.DataFrame(vehicle_charging_sequences)
 
-        print(f"\n \t Aggregating the charging schedule per stop...")
+        # Calculate share
+        success_share = self._charging_schedule_pervehicle['success'].mean() * 100  # mean() gives fraction of True values
+        print(f"\n \t Share of successful charging journeys: {success_share:.2f}%")
+
+        print(f"INFO \t Aggregating the charging schedule per stop...")
         self._charging_schedule_perstop = self._aggregate_charging_by_stop()
         print(f"\t Charging schedule computation completed.")
+
 
     def _group_trip_events_by_id(self):
         """Groups travel events by trip_id into a dictionary."""
@@ -260,23 +276,30 @@ class ChargingSimulator:
             charged_energy = sum(e["energy_charged_kWh"] for e in charging_events)
             remaining = total_need - charged_energy
 
+        # Compute minimum required capacity and associated SOC at the start of the day
         charging_events.sort(key=lambda e: e["start_time"])
-        min_capacity = self._find_minimum_battery_capacity(travel_sequence, charging_events)
+        min_capacity, start_end_soc_kWh = self._find_minimum_battery_capacity_and_start_capacity(travel_sequence, charging_events)
 
-        print("Hello")
+        # Check for success
+        if remaining > 0.1 or min_capacity > self.battery_capacity_kWh:
+            success = False
+        else:
+            success = True
 
         return {
             "charging_sequence": charging_events,
-            "charging_need_kWh": total_need,
+            "success": success,
+            "charging_need_kWh": total_need,            
             "remaining_need_kWh": remaining,
             "min_capacity_kWh": min_capacity,
+            "start_soc_with_min_capacity_kWh": start_end_soc_kWh
         }
 
     def _generate_charging_events_for_strategy(self, travel_sequence, charging_strategy, 
         charging_need_kWh,
-        charge_probability_terminal,
-        charge_probability_stop,
-        specific_terminal_ids = None,
+        charge_probability_terminal = 0,
+        charge_probability_stop = 0,
+        specific_terminal_ids = [],
         depot_travel_time_min = [0,0]):
         """
         Simulates charging events based on a given strategy and a vehicle’s travel sequence.
@@ -595,39 +618,62 @@ class ChargingSimulator:
 
         return random.choices(powers, weights=probabilities, k=1)[0]
 
-    def _find_minimum_battery_capacity(self, travel_sequence, charging_events):
+    def _find_minimum_battery_capacity_and_start_capacity(self, travel_sequence, charging_events):
         # Merge and sort all events by time
         events = []
 
         # Energy consumption 
         energy_consumption_kWh_per_km = self.energy_consumption_kWh_per_km
 
+        # --- Travel events ---
+        travel_times = []
         for event in travel_sequence:
             if event["status"] == "travelling":
                 energy = -event["distance_km"] * energy_consumption_kWh_per_km
-                events.append( (datetime.strptime(event["start_time"], "%H:%M:%S"), energy) )
+                t = datetime.strptime(event["start_time"], "%H:%M:%S")
+                events.append((t, energy))
+                travel_times.append(t)
 
+        first_travel_time = min(travel_times) if travel_times else None
+
+        # --- Charging events ---
+        charge_events = []
         for event in charging_events:
             energy = event["energy_charged_kWh"]
-            events.append( (datetime.strptime(event["start_time"], "%H:%M:%S"), energy) )
+            t = datetime.strptime(event["start_time"], "%H:%M:%S")
+            charge_events.append((t, energy))
+
+        # If there is a charging event before the first travel → move it to the end
+        if first_travel_time is not None:
+            before_first_travel = [e for e in charge_events if e[0] < first_travel_time]
+            after_first_travel  = [e for e in charge_events if e[0] >= first_travel_time]
+
+            # Place "before first travel" charges at the end of the day (+24h shift)
+            shifted = [(e[0] + timedelta(days=1), e[1]) for e in before_first_travel]
+
+            events.extend(after_first_travel + shifted)
+        else:
+            # If no travel events, just add them as-is
+            events.extend(charge_events)
 
         # Sort all events chronologically
         events.sort(key=lambda x: x[0])
 
-        # Simulate battery usage
+        # --- Simulate battery usage ---
         battery_level = 0.0
         min_battery_level = 0.0
         max_battery_level = 0.0
 
-        for time, energy in events:
+        for _, energy in events:
             battery_level += energy
             min_battery_level = min(min_battery_level, battery_level)
             max_battery_level = max(max_battery_level, battery_level)
 
         # Battery profile is shifted so the minimum is 0
         required_capacity = max_battery_level - min_battery_level
+        start_capacity = -min_battery_level
 
-        return required_capacity
+        return required_capacity, start_capacity
 
     # Charging load curve
 
