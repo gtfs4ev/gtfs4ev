@@ -15,7 +15,7 @@ The tool can be imported as a python library or used with a command-line interfa
 
 ## Key Features and Workflow
 
-The core functionality of GTFS4EV spans three main dimensions, which together form also the high-level simulation workflow (see Figure 1):
+The core functionality of `GTFS4EV` spans three main dimensions, which together form also the high-level simulation workflow (see Figure 1):
 
 1. **GTFS data pre-processing**: GTFS data validation and cleaning.
 2. **Fleet operation simulation**: Data-based simulation of bus fleet operations, estimating the number of vehicles in operation and their travel patterns.
