@@ -11,7 +11,7 @@
 
 `GTFS4EV` is an open-source Python tool designed to support the planning of public bus electrification. By leveraging the standardized General Transit Feed Specification (GTFS), it allows planners and researchers to quickly simulate bus operations and explore electrification scenarios without requiring proprietary or vehicle-level operational data. It bridges the gap between detailed agent-based simulators and simplified first-order calculators, providing a modular workflow for GTFS data pre-processing, fleet operation and charging simulation, and ex-post analysis of impacts (CO₂ savings, exposure to air pollution, fuel cost savings) and the potential integration of photovoltaic energy.
 
-The tool can be imported as a python library or used with a command-line interface (CLI). The API of `GTFS4EV` has been designed in an object-oriented manner and is easily extendable. 
+The tool can be imported as a Python library or used with a command-line interface (CLI). The API of `GTFS4EV` has been designed in an object-oriented manner and is easily extendable. 
 
 ## Key Features and Workflow
 
@@ -19,7 +19,7 @@ The core functionality of `GTFS4EV` spans three main dimensions, which together 
 
 1. **GTFS data pre-processing**: GTFS data validation and cleaning.
 2. **Fleet operation simulation**: Data-based simulation of bus fleet operations, estimating the number of vehicles in operation and their travel patterns.
-3. **Scenario-based charging**: Spatio-temporal charging demand, scenario feasability, and infrastructure requirements (required number of chargers, required bus battery capacities) under user-defined electrification scenarios (i.e., available charging powers, charging strategy, and electric bus energy consumption)
+3. **Scenario-based charging**: Spatio-temporal charging demand, scenario feasibility, and infrastructure requirements (required number of chargers, required bus battery capacities) under user-defined electrification scenarios (i.e., available charging powers, charging strategy, and electric bus energy consumption)
 
 <br>
 
@@ -33,18 +33,18 @@ Other **standout features**:
 * PV integration potential: Assess charging demand alignment with local solar PV generation.
 * Ex-post impact analysis (CO₂ savings, spatial air pollution reduction, and fuel cost savings).
 * Supports multiple charging strategies applied in sequence. The model starts with the first strategy and falls back to the next one if charging needs are not met, ensuring flexible charging simulations.
-* Visualisation of spatial charging demand as HTML maps 
+* Visualization of spatial charging demand as HTML maps 
 * Dual usage: Use as a CLI or as a modular Python library.
 
 ## Authors 
 
-`GTFS4EV` is initally developed by EPFL (Switzerland), within the Photovoltaics and Thin Film Electronics Laboratory (PV-Lab). 
+`GTFS4EV` is initially developed by EPFL (Switzerland), within the Photovoltaics and Thin Film Electronics Laboratory (PV-Lab). 
 
 Main authors: Jeremy Dumoulin (jeremy.dumoulin[at]epfl.ch), Alejandro Pena-Bello, Noémie Jeannin, Nicolas Wyrsch
 
 ## Installation
 
-It is recommended to use a a dedicated virtual environment. See for instance the creation of a virtual environment [with pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/) or [with conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html). `GTFS4EV`  has been tested with Python 3.12 and 3.13. 
+It is recommended to use a dedicated virtual environment. See for instance the creation of a virtual environment [with pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/) or [with conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html). `GTFS4EV` has been tested with Python 3.12 and 3.13. 
 
 `GTFS4EV` is available as a PyPI package and can be installed via pip with:
 
@@ -60,7 +60,7 @@ cd gtfs4ev
 pip install -e .
 ```
 
-## Quick start
+## Quickstart
 
 ### As a command-line interface
 
@@ -119,11 +119,11 @@ load_curve = charging.compute_charging_load_curve(time_step_s=60)
 load_curve.to_csv(f"path/to/your/output_folder/load_curve.csv", index=False)
 ```
 
-> :bulb: We recommend starting by looking at the full documentations and examples to get familiar with the workflow, inputs . The easiest way to access all necessary files is to download the full GitHub repository as a ZIP file, extract it and copy the contents of the example folder into the directory of your choice.
+> :bulb: We recommend starting by looking at the full documentation and examples to get familiar with the simulation workflow, inputs and outputs. The easiest way to access all necessary files is to download the full GitHub repository as a ZIP file, extract it and copy the contents of the example folder into the directory of your choice.
 
 ## Documentation
 
-For detailed information about the model and its usage, please see the [documentation](https://gtfs4ev.github.io/gtfs4ev/). The documentation also contains step-by-step guide to the examples available in the `examples/` folder.
+For detailed information about the model and its usage, please see the [documentation](https://gtfs4ev.github.io/gtfs4ev/). The documentation also contains step-by-step guides to the examples available in the `examples/` folder.
 
 ## Suggestions and contributions
 
