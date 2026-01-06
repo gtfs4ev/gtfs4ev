@@ -1,4 +1,6 @@
-# GTFS4EV
+<center>
+   <img src="docs/img/logo_with_text.png" width="60%"> 
+</center>
 
 [![PyPI version](https://badge.fury.io/py/gtfs4ev.svg)](https://badge.fury.io/py/gtfs4ev)
 [![Python versions](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://pypi.org/project/gtfs4ev/)
@@ -20,8 +22,10 @@ The core functionality of GTFS4EV spans three main dimensions, which together fo
 3. **Scenario-based charging**: Spatio-temporal charging demand, scenario feasability, and infrastructure requirements (required number of chargers, required bus battery capacities) under user-defined electrification scenarios (i.e., available charging powers, charging strategy, and electric bus energy consumption)
 
 <br>
+
 ![Workflow Diagram](docs/img/workflow_schematic.png)
 *Figure 1: The GTFS4EV three-step workflow: GTFS data pre-processing, fleet simulation, and scenario-based charging.*
+
 <br>
 
 Other **standout features**:
