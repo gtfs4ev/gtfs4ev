@@ -11,18 +11,20 @@
 
 The tool can be imported as a python library or used with a command-line interface (CLI). The API of `GTFS4EV` has been designed in an object-oriented manner and is easily extendable. 
 
-## Key features and simulation workflow
+## Key Features and Workflow
 
-The core functionality of GTFS4EV spans three main dimensions, which together form also the high-level simulation workflow (Figure 1):
+The core functionality of GTFS4EV spans three main dimensions, which together form also the high-level simulation workflow (see Figure 1):
 
 1. **GTFS data pre-processing**: GTFS data validation and cleaning.
 2. **Fleet operation simulation**: Data-based simulation of bus fleet operations, estimating the number of vehicles in operation and their travel patterns.
 3. **Scenario-based charging**: Spatio-temporal charging demand, scenario feasability, and infrastructure requirements (required number of chargers, required bus battery capacities) under user-defined electrification scenarios (i.e., available charging powers, charging strategy, and electric bus energy consumption)
 
+<br>
 ![Workflow Diagram](docs/img/workflow_schematic.png)
 *Figure 1: The GTFS4EV three-step workflow: GTFS data pre-processing, fleet simulation, and scenario-based charging.*
+<br>
 
-Other standout features:
+Other **standout features**:
 * GTFS data filtering (e.g. suppression of specific services) or enrichment (e.g. addition of extra idle times at stops or terminals).
 * PV integration potential: Assess charging demand alignment with local solar PV generation.
 * Ex-post impact analysis (CO₂ savings, spatial air pollution reduction, and fuel cost savings).
@@ -33,6 +35,7 @@ Other standout features:
 ## Authors 
 
 `GTFS4EV` is initally developed by EPFL (Switzerland), within the Photovoltaics and Thin Film Electronics Laboratory (PV-Lab). 
+
 Main authors: Jeremy Dumoulin (jeremy.dumoulin[at]epfl.ch), Alejandro Pena-Bello, Noémie Jeannin, Nicolas Wyrsch
 
 ## Installation
@@ -113,7 +116,6 @@ load_curve.to_csv(f"path/to/your/output_folder/load_curve.csv", index=False)
 ```
 
 > :bulb: We recommend starting by looking at the full documentations and examples to get familiar with the workflow, inputs . The easiest way to access all necessary files is to download the full GitHub repository as a ZIP file, extract it and copy the contents of the example folder into the directory of your choice.
-
 
 ## Documentation
 
