@@ -64,7 +64,7 @@ charging = ChargingSimulator(
     security_driving_distance_km=0,          # Extra distance reserve to keep in the battery
     charging_powers_kW={
         # Charging power levels (kW) and their relative availability/probability
-        "depot": [[11, 0.5], [22, 0.5]],     # Depot chargers: 50% at 11 kW, 50% at 22 kW
+        "depot": [[22, 0.5], [50, 0.5]],     # Depot chargers: 50% at 22 kW, 50% at 50 kW
         "terminal": [[150, 1.0]]             # Terminal chargers: 100% at 150 kW
     }
 )

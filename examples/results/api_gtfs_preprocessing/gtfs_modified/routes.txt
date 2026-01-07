@@ -1,2 +1,0 @@
-route_id,agency_id,route_short_name,route_long_name
-10000107D11,UON,107D,Ruaka-Ruiru

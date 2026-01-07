@@ -253,7 +253,33 @@ class ChargingSimulator:
         for strategy in charging_strategy:
             if remaining <= 0:
                 break
-            events = self._generate_charging_events_for_strategy(travel_sequence, strategy, remaining, **kwargs)
+
+            # ----------------------------------------------------------
+            # Case 1: built-in strategy (string identifier)
+            # ----------------------------------------------------------
+            if isinstance(strategy, str):
+                events = self._generate_charging_events_for_strategy(
+                    travel_sequence,
+                    strategy,
+                    remaining,
+                    **kwargs
+                )
+
+            # ----------------------------------------------------------
+            # Case 2: user-provided callable strategy
+            # ----------------------------------------------------------
+            elif callable(strategy):
+                events = strategy(
+                    travel_sequence=travel_sequence,
+                    remaining_need_kWh=remaining,
+                    simulator=self,
+                    **kwargs
+                )
+
+            else:
+                raise TypeError(
+                    "Charging strategies must be either string identifiers or callable functions."
+                )
             for event in events:
                 start = datetime.strptime(event["start_time"], "%H:%M:%S")
                 end = datetime.strptime(event["end_time"], "%H:%M:%S")
