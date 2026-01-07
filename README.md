@@ -32,9 +32,10 @@ Other **standout features**:
 * GTFS data filtering (e.g. suppression of specific services) or enrichment (e.g. addition of extra idle times at stops or terminals).
 * PV integration potential: Assess charging demand alignment with local solar PV generation.
 * Ex-post impact analysis (CO₂ savings, spatial air pollution reduction, and fuel cost savings).
-* Supports multiple charging strategies applied in sequence. The model starts with the first strategy and falls back to the next one if charging needs are not met, ensuring flexible charging simulations.
-* Visualization of spatial charging demand as HTML maps 
-* Dual usage: Use as a CLI or as a modular Python library.
+* Flexible charging strategy support: Includes built-in charging strategies with also the option for users to implement custom strategies.
+* Supports multiple charging strategies applied in sequence. The model starts with the first strategy and falls back to the next one if charging needs are not met. This approach allows building a complex charging logic by layering simpler strategies without needing to rewrite or duplicate code.
+* Spatial visualization of transport network and charging demand as HTML maps 
+* Dual usage: Use as a CLI or as a modular Python library for advanced analysis.
 
 ## Authors 
 
