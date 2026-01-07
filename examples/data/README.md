@@ -2,7 +2,7 @@ This folder contains an example datasets used to illustrate the usage of **GTFS4
 
 ## Sample GTFS data
 
-The example GTFS feed is derived from the **Digital Matatu Project** for Nairobi, Kenya. The `sample_gtfs` folder contains a **subset of the Nairobi GTFS feed**, reduced to **2 routes** for demonstration purposes. This allows quick execution of the examples.
+The example GTFS feed is derived from the **Digital Matatu Project** for Nairobi, Kenya. The `sample_gtfs` folder contains a **subset of the Nairobi GTFS feed**, reduced to **2 routes** and slighlty modified (adding weekend only trips)for demonstration purposes. 
 
 - Source: Digital Transport For Africa Gitlab (downloaded 01.09.2024)
 - Description: GTFS data describing public minibus transport in Nairobi collected through the Digital Matatu Project

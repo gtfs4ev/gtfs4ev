@@ -1,0 +1,35 @@
+GTFS Feed Summary:
+===========================================
+
+Trips: 2  |  Routes: 1  |  Services: 1
+Stops: 68  |  Stop Times: 70  |  Frequencies: 6
+Agencies: 1  |  Shapes: 2
+
+Note: The number of trips is twice the number of routes, suggesting that each route is associated with a round trip.
+
+Simulation area: 154.96 km²
+
+===========================================
+
+Temporal Analysis:
+=================
+
+Frequency intervals: 3 
+Operating from 1900-01-01 06:00:00 to 1900-01-01 21:00:00
+
+Trip Statistics:
+=================
+
+Total Trip Length (km): 52.47
+Average Trip Length (km): 26.23
+Min Trip Length (km): 26.09
+Max Trip Length (km): 26.38
+
+Stop Statistics:
+=================
+
+Min Stops per Trip: 32
+Max Stops per Trip: 38
+Avg Stops per Trip: 35.00
+Avg Stops per Route: 70.00
+
