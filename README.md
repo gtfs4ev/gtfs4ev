@@ -79,44 +79,35 @@ $ Enter the path to the python configuration file: C:\Users\(...)\config.py
 ### As a Python library
 
 ```python
-from gtfs4ev.gtfsmanager import GTFSManager
-from gtfs4ev.fleetsimulator import FleetSimulator
-from gtfs4ev.chargingsimulator import ChargingSimulator
+from gtfs4ev.core.gtfsmanager import GTFSManager
+from gtfs4ev.core.fleetsimulator import FleetSimulator
+from gtfs4ev.core.chargingsimulator import ChargingSimulator
 
 # Load GTFS data
-gtfs = GTFSManager(gtfs_datafolder="path/to/your/gtfs_folder")
+gtfs = GTFSManager("path/to/GTFS_folder")
 
-# Check and clean GTFS feed if needed
-if not gtfs.check_all():
-    gtfs.clean_all()
+# Simulate fleet operation for all trips
+fleet = FleetSimulator(gtfs)
+fleet.compute_fleet_operation()
 
-# Simulate fleet operation (all trips)
-fleet_sim = FleetSimulator(gtfs_manager=gtfs)
-fleet_sim.compute_fleet_operation()
-
-# Define and compute a simple charging scenario
+# Define and run a simple charging scenario
 charging = ChargingSimulator(
-    fleet_sim=fleet_sim,
+    fleet_sim=fleet,
     energy_consumption_kWh_per_km=0.39,
+    security_driving_distance_km=0, 
     battery_capacity_kWh=50,
-    charging_powers_kW={
-        "depot": [[11, 0.5], [22, 0.5]],
-        "terminal": [[150, 1.0]]
-    }
+    charging_powers_kW={"depot":[[11,0.5],[22,0.5]],"terminal":[[150,1.0]]}
 )
-
 charging.compute_charging_schedule(
-    strategies=["terminal_random", "depot_night"],
-    charge_probability_terminal=0.5, # Probability of charging when arriving at a terminal
-    depot_travel_time_min=[30,15] # [Average, standard deviation] time to reach the depot after operating hours 
+    strategies=["terminal_random","depot_night"],
+    charge_probability_terminal=0.5,
+    depot_travel_time_min=[30,15]
 )
 
-# Example output - charging schedule per vehicle
-charging.charging_schedule_pervehicle.to_csv(f"path/to/your/output_folder/charging_schedules.csv", index=False)
+# Export results
+charging.charging_schedule_pervehicle.to_csv("path/to/output/charging_schedules.csv",index=False)
+charging.compute_charging_load_curve(time_step_s=60).to_csv("path/to/output/load_curve.csv",index=False)
 
-# Example outputs - Generate aggregated charging load curve
-load_curve = charging.compute_charging_load_curve(time_step_s=60)
-load_curve.to_csv(f"path/to/your/output_folder/load_curve.csv", index=False)
 ```
 
 > :bulb: We recommend starting by looking at the full documentation and examples to get familiar with the simulation workflow, inputs and outputs. The easiest way to access all necessary files is to download the full GitHub repository as a ZIP file, extract it and copy the contents of the example folder into the directory of your choice.
