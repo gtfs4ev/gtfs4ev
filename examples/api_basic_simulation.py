@@ -82,6 +82,9 @@ charging.compute_charging_schedule(
 
 # --- Basic outputs (recommended) ---
 
+# Export detailed fleet operation results 
+fleet_sim.fleet_operation.to_csv(f"{OUTPUT_FOLDER}/fleet_operation.csv", index=False)
+
 # Export the charging schedule per vehicle
 charging.charging_schedule_pervehicle.to_csv(f"{OUTPUT_FOLDER}/charging_schedules_per_vehicle.csv", index=False)
 
@@ -93,9 +96,6 @@ load_curve.to_csv(f"{OUTPUT_FOLDER}/charging_load_curve.csv", index=False)
 gtfs.generate_network_map(f"{OUTPUT_FOLDER}/GTFS_map_alldata.html")
 
 # --- Optional outputs and visualizations (uncomment to enable) ---
-
-# Export detailed fleet operation results 
-# fleet_sim.fleet_operation.to_csv(f"{OUTPUT_FOLDER}/fleet_operation.csv", index=False)
 
 # Export detailed trip travel sequences (stop-by-stop vehicle movements)
 # fleet_sim.trip_travel_sequences.to_csv(f"{OUTPUT_FOLDER}/trip_travel_sequences.csv", index=False)
