@@ -1,21 +1,32 @@
 # ------------------------------------------
 # CONFIGURATION FILE: GTFS4EV MODEL
 # ------------------------------------------
+#
+# This configuration file is written in Python, but no Python knowledge beyond basic 
+# variable assignment is required for normal use.
+#
+# For more advanced users, this allows more flexible definition of simulation parameters 
+# or charging strategies while remaining simple to edit.
+#
+# File structure:
+# - Basic parameters: general, GTFS data, fleet simulation, and charging scenario
+# - Advanced parameters: GTFS preprocessing, GTFS outputs, fleet simulation options, and charging scenario fine-tuning
 
 # ========================================== #
 # ============= BASIC PARAMETERS =========== #
 # ========================================== #
 
 # --- General ---
-output_folder = "output"  # Output folder path (stores the output files)
+output_folder = "results"  # Output folder path (stores the output files)
 
 # --- GTFS Data ---
-gtfs_datafolder = "input/GTFS_Nairobi" # Path to the GTFS data folder (needs to be unziped!)
+gtfs_datafolder = "data/sample_GTFS" # Path to the GTFS data folder (needs to be unziped!)
 
 # --- Fleet Operation Simulation ---
-trips_to_simulate = ["1011F110", "1107D110", "10114111"]  
-# List of specific trip IDs to simulate. Useful for testing or focusing on a small subset.
-# Write 'trips_to_simulate = None' to simulate all trips.
+trips_to_simulate = None # Simulates all trips
+
+# Optional: restrict the simulation to a subset of trips (useful for testing of large GTFS datasets)
+# To do so, provide a list of trips to simulate instead of None. e.g. ["1107D110", "1107D111"]
 
 # --- Charging Scenario ---
 energy_consumption_kWh_per_km = 0.39  # Vehicle energy consumption per kilometer (in kWh)
@@ -28,7 +39,7 @@ charging_powers_kW = {
 
 # Sequence of charging strategies to apply in order.
 # The first strategy is attempted first. If charging needs are unmet, the next is tried.
-charging_strategy_sequence = ["terminal_random", "stop_random", "depot_night"]
+charging_strategy_sequence = ["terminal_random", "depot_night"]
 
 # Available strategies:
 # - "terminal_random"       → Random charging at terminal with given probability
@@ -37,25 +48,9 @@ charging_strategy_sequence = ["terminal_random", "stop_random", "depot_night"]
 # - "depot_day"             → Recharge at depot during the day when not in operation
 
 # Parameters for specific strategies
-charge_probability_terminal = 0.1  # Probability of charging at terminal
-charge_probability_stop = 0.1      # Probability of charging at stop
+charge_probability_terminal = 0.5  # Probability of charging at terminal
+charge_probability_stop = 0.0      # Probability of charging at stop (not used in the current charging strategy)
 depot_travel_time_min = [30, 15]   # [mean, std_deviation] of travel time (in minutes) to/from depot
-
-# --- PV Production ---
-latitude = 0.17094549   # Latitude of the PV system location
-longitude = 37.9039685  # Longitude of the PV system location
-year = 2020             # Year for PV simulation (affects solar data)
-
-installation_type = "groundmounted_fixed"  
-# PV installation type. Options include:
-# 'rooftop', 'groundmounted_fixed', 'groundmounted_singleaxis_horizontal', 
-# 'groundmounted_singleaxis_vertical', 'groundmounted_dualaxis'
-
-# --- EV-PV Complementarity ---
-pv_capacity_MW = 10  # Installed PV capacity in megawatts
-start_date = "01-01"  # Simulation start date (format: MM-DD)
-end_date = "01-07"    # Simulation end date (format: MM-DD)
-
 
 # ========================================== #
 # =========== ADVANCED PARAMETERS ========== #
@@ -81,8 +76,3 @@ generate_map_fleet_movement = False # Generates an animation/map of bus movement
 # --- Charging Scenario ---
 security_driving_distance_km = 0  # Extra buffer distance added to each vehicle (in km)
 load_curve_timestep_s = 60        # Time step (in seconds) for generating load curves
-
-# --- PV Production ---
-module_efficiency = 0.22             # Nominal efficiency of the PV modules (decimal)
-temperature_coefficient = -0.004     # Power loss per °C 
-system_losses = 0.14                 # Additionnal system losses (wiring, inverter, etc.)

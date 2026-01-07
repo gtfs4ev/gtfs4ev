@@ -9,12 +9,10 @@ import pandas as pd
 from shapely.ops import substring
 
 # Import relevant classes from the GTFS4EV package
-from gtfs4ev.gtfsmanager import GTFSManager
-from gtfs4ev.tripsimulator import TripSimulator
-from gtfs4ev.fleetsimulator import FleetSimulator
-from gtfs4ev.chargingsimulator import ChargingSimulator
-from gtfs4ev.pvsimulator import PVSimulator
-from gtfs4ev.evpvsynergies import EVPVSynergies
+from gtfs4ev.core.gtfsmanager import GTFSManager
+from gtfs4ev.core.tripsimulator import TripSimulator
+from gtfs4ev.core.fleetsimulator import FleetSimulator
+from gtfs4ev.core.chargingsimulator import ChargingSimulator
 
 # Std redirection
 
@@ -51,6 +49,9 @@ def main():
     
     # Dynamically load the config
     config = load_config(config_path) 
+
+    # Create the output folder if it does not exist
+    os.makedirs(config.output_folder, exist_ok=True)
 
     sys.stdout = Tee(f"{config.output_folder}/output.log")  # Capture all prints in a log file   
 
@@ -155,67 +156,16 @@ def run_simulation(config):
     load_curve = cs.compute_charging_load_curve(time_step_s = config.load_curve_timestep_s)
     load_curve.to_csv(f"{config.output_folder}/Charging_load_curve.csv", index=False)
 
-    ###############################################################################
-    ############################ STEP 4: PV Simulation ############################ 
-    ###############################################################################
-
-    pv = PVSimulator(
-        environment={
-            'latitude': config.latitude,  
-            'longitude': config.longitude,  
-            'year': config.year  
-        }, 
-        pv_module={
-            'efficiency': config.module_efficiency,
-            'temperature_coefficient': config.temperature_coefficient
-        }, 
-        installation={
-            'type': config.installation_type,  
-            'system_losses': config.system_losses
-        }
-    )
-
-    pv.compute_pv_production() # Calculate PV production based on the defined parameters
-    pv.results.to_csv(f"{config.output_folder}/PV_production.csv") # Save PV production data
-
-    ###############################################################################
-    ######################## STEP 5: EV-PV Complementarity ######################## 
-    ###############################################################################
-
-    evpv = EVPVSynergies(pv=pv, load_curve=load_curve, pv_capacity_MW=config.pv_capacity_MW)
-    synergy_metrics = evpv.daily_metrics(config.start_date, config.end_date)
-    synergy_metrics.to_csv(f"{config.output_folder}/EVPVSynergies.csv") # Save synergy metrics data
-
-    # End time and message 
-
-    end_time = time.time()
-
-    # Calculate the duration
-    duration = end_time - start_time
-    minutes = int(duration // 60)  # Get the whole minutes
-    seconds = duration % 60         # Get the remaining seconds
-
-    print("")
-    print("")
-    print("------------------------------------------------")
-    print(f"Simulation completed")
-    print(f"Elapsed time: : {minutes} minutes and {seconds:.2f} seconds")
-    print("------------------------------------------------")
-
 # Helper functions
 
 def load_config(config_path):
-    # Ensure the provided config file exists
-    if not os.path.exists(config_path):
+    if not os.path.isfile(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
-    # Get the module name (e.g., 'config') from the file name (e.g., 'config.py')
-    config_name = os.path.splitext(os.path.basename(config_path))[0]
+    module_name = "_gtfs4ev_user_config"
 
-    # Dynamically load the config module
-    spec = importlib.util.spec_from_file_location(config_name, config_path)
+    spec = importlib.util.spec_from_file_location(module_name, config_path)
     config_module = importlib.util.module_from_spec(spec)
-    sys.modules[config_name] = config_module
     spec.loader.exec_module(config_module)
 
     return config_module
