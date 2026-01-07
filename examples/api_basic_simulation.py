@@ -62,7 +62,6 @@ charging = ChargingSimulator(
     fleet_sim=fleet_sim,                     # Fleet operation results used as input
     energy_consumption_kWh_per_km=0.39,      # Average vehicle energy consumption per kilometer
     security_driving_distance_km=0,          # Extra distance reserve to keep in the battery
-    battery_capacity_kWh=50,                 # Usable battery capacity of each vehicle
     charging_powers_kW={
         # Charging power levels (kW) and their relative availability/probability
         "depot": [[11, 0.5], [22, 0.5]],     # Depot chargers: 50% at 11 kW, 50% at 22 kW

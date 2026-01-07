@@ -95,7 +95,6 @@ charging = ChargingSimulator(
     fleet_sim=fleet,
     energy_consumption_kWh_per_km=0.39,
     security_driving_distance_km=0, 
-    battery_capacity_kWh=50,
     charging_powers_kW={"depot":[[11,0.5],[22,0.5]],"terminal":[[150,1.0]]}
 )
 charging.compute_charging_schedule(

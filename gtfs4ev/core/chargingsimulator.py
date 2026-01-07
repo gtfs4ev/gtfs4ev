@@ -17,13 +17,13 @@ class ChargingSimulator:
     """
     A class simulating the charging of electric vehicles based on the mobility simulation and charging strategy."""
 
-    def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, battery_capacity_kWh: float, security_driving_distance_km: float , charging_powers_kW: dict = None):
+    def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, security_driving_distance_km: float , charging_powers_kW: dict = None):
         """
         Initializes the Charging Simulator.
 
         Args:
             fleet_sim: An instance of a FleetSimulator class containing vehicle operations.
-            vehicle_properties (dict): A dictionary of vehicle properties (e.g., energy consumption, battery capacity).
+            vehicle_properties (dict): A dictionary of vehicle properties (e.g., energy consumption).
             charging_powers_kw (dict): A dictionary of vehicle_id: charging power in kW.
         """
         print("=========================================")
@@ -32,7 +32,6 @@ class ChargingSimulator:
 
         self.fleet_sim = fleet_sim
         self.energy_consumption_kWh_per_km = energy_consumption_kWh_per_km
-        self.battery_capacity_kWh = battery_capacity_kWh
         self.security_driving_distance_km = security_driving_distance_km
         self.charging_powers_kW = charging_powers_kW or {}
 
@@ -62,16 +61,6 @@ class ChargingSimulator:
         if not isinstance(value, (int, float)) or value <= 0:
             raise ValueError("energy_consumption_kWh_per_km must be a positive number.")
         self._energy_consumption_kWh_per_km = value
-
-    @property
-    def battery_capacity_kWh(self):
-        return self._battery_capacity_kWh
-
-    @battery_capacity_kWh.setter
-    def battery_capacity_kWh(self, value):
-        if not isinstance(value, (int, float)) or value <= 0:
-            raise ValueError("battery_capacity_kWh must be a positive number.")
-        self._battery_capacity_kWh = value
 
     @property
     def security_driving_distance_km(self):
@@ -281,7 +270,7 @@ class ChargingSimulator:
         min_capacity, start_end_soc_kWh = self._find_minimum_battery_capacity_and_start_capacity(travel_sequence, charging_events)
 
         # Check for success
-        if remaining > 0.1 or min_capacity > self.battery_capacity_kWh:
+        if remaining > 0.01:
             success = False
         else:
             success = True
