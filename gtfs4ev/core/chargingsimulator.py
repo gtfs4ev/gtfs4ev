@@ -11,7 +11,7 @@ from folium.plugins import TimestampedGeoJson
 from folium.plugins import HeatMap
 import branca.colormap as cm
 
-from gtfs4ev.fleetsimulator import FleetSimulator
+from gtfs4ev.core.fleetsimulator import FleetSimulator
 
 class ChargingSimulator:
     """

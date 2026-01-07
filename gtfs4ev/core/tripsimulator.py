@@ -8,8 +8,8 @@ from shapely.geometry import LineString, Point
 import folium
 from folium.plugins import TimestampedGeoJson
 
-from gtfs4ev.gtfsmanager import GTFSManager
-from gtfs4ev import helpers as hlp
+from gtfs4ev.core.gtfsmanager import GTFSManager
+from gtfs4ev.utils import helpers as hlp
 
 class TripSimulator:
     """A class simulating the operation of vehicles on a trip based on GTFS data."""

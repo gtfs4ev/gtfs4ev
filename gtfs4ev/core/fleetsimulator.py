@@ -6,9 +6,9 @@ import multiprocessing as mp
 import time
 import gc
 
-from gtfs4ev.gtfsmanager import GTFSManager
-from gtfs4ev.tripsimulator import TripSimulator
-from gtfs4ev import helpers as hlp
+from gtfs4ev.core.gtfsmanager import GTFSManager
+from gtfs4ev.core.tripsimulator import TripSimulator
+from gtfs4ev.utils import helpers as hlp
 
 class FleetSimulator:
     """

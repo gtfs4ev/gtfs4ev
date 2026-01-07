@@ -15,7 +15,7 @@ from folium.plugins import MarkerCluster
 from folium import PolyLine
 from shapely.ops import substring
 
-from gtfs4ev import helpers as hlp
+from gtfs4ev.utils import helpers as hlp
 
 class GTFSManager:
     """A class to represent and manage a GTFS feed data.

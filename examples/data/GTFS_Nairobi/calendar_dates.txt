@@ -1,5 +1,0 @@
-service_id,date,exception_type
-DAILY,20191020,1
-DAILY,20191212,1
-DAILY,20201020,1
-DAILY,20201212,1
