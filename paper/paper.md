@@ -84,7 +84,7 @@ Beyond the core simulation, GTFS4EV supports a set of ex-post analyses derived f
 
 # Implementation 
 
-The model is implemented as a modular Python package with an object-oriented design. Core classes correspond to the main workflow steps: GTFS data preprocessing, fleet operation simulation, and scenario-based charging demand estimation. Two additional classes support the assessment of local PV production and PV integration potential. Helper scripts provide ex-post analyses, including emissions and cost savings.
+The model is implemented as a modular Python package with an object-oriented design. Core classes correspond to the main workflow steps: GTFS data preprocessing, fleet operation simulation, and scenario-based charging demand estimation. Two additional classes support the assessment of local PV production and PV integration potential. Other classes provide ex-post impact analysis, including emissions and cost savings.
 
 The package can be executed via a command-line interface, enabling rapid case studies and use by non-programmers. For greater flexibility and advanced usage, it can also be imported within Python scripts, allowing customized analyses and integration into other simulation workflows.
 
