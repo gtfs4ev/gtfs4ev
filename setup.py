@@ -4,6 +4,7 @@ setup(
     name="gtfs4ev",          
     version=0.1,                  
     description="A Python framework for simulating electric bus operations and charging demand using GTFS data",
+    packages=["gtfs4ev"],
     long_description="README.md",
     long_description_content_type="text/markdown",
     author="Jérémy Dumoulin",
