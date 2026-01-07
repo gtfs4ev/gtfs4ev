@@ -1,10 +1,9 @@
 from setuptools import setup
-from version import __version__
 
 setup(
     name="gtfs4ev",          
     version=__version__,                  
-    description="A modelling tool to calculate electrification scenarios for public transport based on GTFS data",
+    description="A Python framework for simulating electric bus operations and charging demand using GTFS data",
     long_description="README.md",
     long_description_content_type="text/markdown",
     author="Jérémy Dumoulin",
