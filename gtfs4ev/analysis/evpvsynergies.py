@@ -10,7 +10,7 @@ from scipy.integrate import IntegrationWarning
 import os
 import contextlib
 
-from gtfs4ev.pvsimulator import PVSimulator
+from gtfs4ev.analysis.pvsimulator import PVSimulator
 
 # Suppress repeated IntegrationWarning
 warnings.filterwarnings("ignore", category=IntegrationWarning)
