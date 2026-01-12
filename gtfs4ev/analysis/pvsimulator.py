@@ -156,9 +156,9 @@ class PVSimulator:
         print(f"INFO \t Fetching hourly weather data with POA irradiance from PV GIS for the year {self.environment['year']} (Installation type: {self.installation['type']})...")
 
 
-        # Default tilt/azimuth and optimization flags
+        # Default tilt/azimuth and optimization flags fixed horizontal panels
         tilt = 0
-        azimuth = 0
+        azimuth = 180
         optimize_tilt = False
         optimize_azimuth = False
 
@@ -168,14 +168,6 @@ class PVSimulator:
             # Edge case: very low latitudes (PVGIS may return zero direct POA)
             if abs(self.location.latitude) < 1:
                 optimize_tilt = False
-                tilt = 0
-                azimuth = 0
-        elif self.installation['type'] == 'flat_roof':
-            # Flat roofs: fixed horizontal panels
-            tilt = 0
-            azimuth = 0
-        else:
-            raise ValueError(f"ERROR \t Unknown PV installation type: {self.installation['type']}")
 
         # Get data from PVGIS
         weather_data_poa, meta, inputs = pvlib.iotools.get_pvgis_hourly(
