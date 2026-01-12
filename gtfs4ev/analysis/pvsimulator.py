@@ -8,6 +8,18 @@ import pytz
 from datetime import datetime
 
 class PVSimulator:
+    """
+    PVSimulator: Simulates hourly PV production for a given location and year.
+
+    Steps / Simulation logic:
+    1. Initialize environment, PV module, and installation parameters.
+    2. Create a `pvlib.Location` object based on latitude, longitude, and timezone.
+    3. Fetch hourly weather data with plane-of-array (POA) irradiance from PVGIS with optimized tilt for certain installation types.
+    4. Create a `pvlib.PVSystem` object using module parameters, inverter parameters, and mounting/temperature settings.
+    5. Compute PV production using `pvlib.modelchain.ModelChain` with losses
+    6. Calculate KPIs: Performance ratio, capacity factor, energy yield, and module temperature.
+    7. Store results in a pandas DataFrame for further analysis.
+    """
     def __init__(self, environment: dict, pv_module: dict, installation: dict):
         """
         Initializes the PVSimulator with validated environmental data, PV module parameters, and installation settings.
@@ -21,7 +33,7 @@ class PVSimulator:
                 - efficiency (float): Efficiency of the PV module (must be a positive decimal less than or equal to 1).
                 - temperature_coefficient (float): Temperature coefficient of the module.
             installation (dict): A dictionary containing installation parameters with the following keys:
-                - type (str): Type of installation (e.g., 'groundmounted_fixed').
+                - type (str): Type of installation (e.g., 'flat_roof').
                 - system_losses (float): System losses as a decimal (must be between 0 and 1).
         """
         print("=========================================")
@@ -79,9 +91,7 @@ class PVSimulator:
         install_type = value.get('type')
         system_losses = value.get('system_losses')
 
-        if install_type not in [
-            'groundmounted_fixed', 'rooftop', 'groundmounted_dualaxis',
-            'groundmounted_singleaxis_horizontal', 'groundmounted_singleaxis_vertical']:
+        if install_type not in ['freestanding_opt_tilt', 'flat_roof']:
             raise ValueError("Invalid installation type specified")
         if not (0 <= system_losses <= 1):
             raise ValueError("System losses must be between 0 and 1")
@@ -145,33 +155,27 @@ class PVSimulator:
         """
         print(f"INFO \t Fetching hourly weather data with POA irradiance from PV GIS for the year {self.environment['year']} (Installation type: {self.installation['type']})...")
 
-        # Initialize tilt and azimuth
-        tilt = 0  # Default value
-        azimuth = 180  # Default value 
-        optimize_tilt = optimize_azimuth = True
 
-        # Set the tracking and tilt/azimuth options
-        if self.installation['type'] == 'groundmounted_fixed':
-            trackingtype = 0
-            # Correct a bug of PVGIS optimizer for low latitudes
-            if abs(self.location.latitude) < 2:
+        # Default tilt/azimuth and optimization flags
+        tilt = 0
+        azimuth = 0
+        optimize_tilt = False
+        optimize_azimuth = False
+
+        # Determine tilt/azimuth optimization based on installation type
+        if self.installation['type'] == 'freestanding_opt_tilt':
+            optimize_tilt = True
+            # Edge case: very low latitudes (PVGIS may return zero direct POA)
+            if abs(self.location.latitude) < 1:
                 optimize_tilt = False
-                optimize_azimuth = False
                 tilt = 0
-                azimuth = 180
-        elif self.installation['type'] == 'groundmounted_singleaxis_horizontal':
-            trackingtype = 1
-        elif self.installation['type'] == 'groundmounted_singleaxis_vertical':
-            trackingtype = 3
-        elif self.installation['type'] == 'groundmounted_dualaxis':
-            trackingtype = 2
-        elif self.installation['type'] == 'rooftop':
-            trackingtype = 0
-            optimize_tilt = optimize_azimuth = False                 
-            azimuth = 180
+                azimuth = 0
+        elif self.installation['type'] == 'flat_roof':
+            # Flat roofs: fixed horizontal panels
             tilt = 0
+            azimuth = 0
         else:
-            raise ValueError(f"ERROR \t PV installation type is unknown.")
+            raise ValueError(f"ERROR \t Unknown PV installation type: {self.installation['type']}")
 
         # Get data from PVGIS
         weather_data_poa, meta, inputs = pvlib.iotools.get_pvgis_hourly(
@@ -191,7 +195,7 @@ class PVSimulator:
             pvtechchoice='crystSi',
             mountingplace='free',
             loss=0,
-            trackingtype=trackingtype,
+            trackingtype=0,
             optimal_surface_tilt=optimize_tilt,
             optimalangles=optimize_azimuth,
             url='https://re.jrc.ec.europa.eu/api/v5_3/',
@@ -204,7 +208,6 @@ class PVSimulator:
         weather_data_poa['poa_global'] = weather_data_poa['poa_direct'] + weather_data_poa['poa_diffuse']
 
         # Convert the index to datetime
-        weather_data_poa.index = pd.to_datetime(weather_data_poa.index)
         weather_data_poa.index = pd.to_datetime(weather_data_poa.index)
 
         # Convert the to local timezone
@@ -229,42 +232,45 @@ class PVSimulator:
         print(f"\t > Diffuse POA irradiance: {(weather_data_poa['poa_diffuse'] * 1).sum() / 1000 } kWh/m2/yr ")
 
         # Update the angles (useful only for fixed mounting to calculate AOI losses)
-        if self.installation['type'] == 'groundmounted_fixed':
+        if self.installation['type'] == 'freestanding_opt_tilt':
             self._installation['tilt'] = meta['mounting_system']['fixed']['slope']['value']
-            self._installation['azimuth'] = meta['mounting_system']['fixed']['azimuth']['value']
         else:
             self._installation['tilt'] = tilt
-            self._installation['azimuth'] = azimuth
+        self._installation['azimuth'] = azimuth
 
         return weather_data_poa
 
     def _create_pv_system(self) -> pvsystem.PVSystem:
-        """Create a PV System with parameters compatible with the PVWatts model.
+        """Create a PVSystem fully handled by pvlib.ModelChain."""
 
-        Returns:
-            pvsystem.PVSystem: A PVSystem object configured with module and inverter parameters.
-        """
-        print(f"INFO \t Creating a pvlib PVSystem object...")
+        print("INFO \t Creating a pvlib PVSystem object...")
 
-        # Set mounting conditions for the thermal model
+        # Mounting choice for temperature model
         mounting = 'freestanding'
-
-        if self.installation['type'] == 'rooftop':
+        if self.installation['type'] == 'flat_roof':
             mounting = 'insulated'
 
         system = pvsystem.PVSystem(
+            surface_tilt=self.installation['tilt'],
+            surface_azimuth=self.installation['azimuth'],
+
             module_parameters={
-                'pdc0': self.pv_module['efficiency'] * 1000,  # Nominal DC power of 1 m2 of PV panel
-                'gamma_pdc': self.pv_module['temperature_coefficient']  # Temperature coefficient (negative value)
+                # PVWatts-style per-m² normalization
+                'pdc0': self.pv_module['efficiency'] * 1000,  # W/m²
+                'gamma_pdc': self.pv_module['temperature_coefficient'],
+
+                # Martin–Ruiz IAM parameters (typical for c-Si)
+                'a_r': 0.16
             },
+
             inverter_parameters={
-                'pdc0': self.pv_module['efficiency'] * 1000,  # Nominal DC power
-                'eta_inv_nom': 1.0,  # Inverter efficiency of 100% (system losses are computed ex-post)
-                'ac_0': self.pv_module['efficiency'] * 1000  # AC power rating assumed equal to DC power rating
+                # Ideal inverter, losses applied ex-post
+                'pdc0': self.pv_module['efficiency'] * 1000,
+                'eta_inv_nom': 1.0
             },
-            temperature_model_parameters=pvlib.temperature.TEMPERATURE_MODEL_PARAMETERS['pvsyst'][mounting],  # PVSyst temperature model    
-            surface_tilt=self.installation['tilt'],  # Used for AOI losses
-            surface_azimuth=self.installation['azimuth']  # Used for AOI losses       
+
+            temperature_model_parameters=
+                pvlib.temperature.TEMPERATURE_MODEL_PARAMETERS['pvsyst'][mounting]
         )
 
         return system
@@ -280,18 +286,20 @@ class PVSimulator:
         """
         print(f"INFO \t Computing the hourly PV production...")
 
-        # Initialize the model chain and run from POA
-        mc = modelchain.ModelChain(self.pv_system, self.location, aoi_model="no_loss", spectral_model="no_loss")
+        mc = modelchain.ModelChain(
+            self.pv_system,
+            self.location,
+            aoi_model="martin_ruiz",
+            spectral_model="no_loss"
+        )
+
         mc.run_model_from_poa(self.weather_data)
 
-        # Correct to account for angle of incidence loss (problem when using the run_model_from_poa here)
-        if self.installation['type'] == 'groundmounted_fixed' or self.installation['type'] == 'rooftop':
-            pv_production = mc.results.dc * (1 - self.calculate_angular_losses(self.environment['latitude'] - self.installation['tilt'])/100)
-        else:
-            pv_production = mc.results.dc
+        # AC power (W/m²), after AOI, temperature, with ideal inverter
+        pv_ac = mc.results.ac
 
         # Correct the DC power for system losses to get AC production
-        pv_production = pv_production * (1 - self.installation['system_losses'])
+        pv_production = pv_ac * (1 - self.installation['system_losses'])
 
         # Compute KPIs
         performance_ratio = pv_production / (self.pv_module['efficiency'] * self.weather_data['poa_global'])
@@ -335,31 +343,3 @@ class PVSimulator:
 
         return None
 
-    def calculate_angular_losses(self, lat_tilt_diff: float) -> float:
-        """
-        Calculate the angular losses for a standard m-Si module based on the difference
-        between latitude and tilt angle.
-
-        Martin, J.M. Ruiz,
-        Calculation of the PV modules angular losses under field conditions by means of an analytical model,
-        Solar Energy Materials and Solar Cells,
-        Volume 70, Issue 1,
-        2001,
-        Pages 25-38,
-        ISSN 0927-0248,
-        https://doi.org/10.1016/S0927-0248(00)00408-6.
-
-        Parameters:
-        - lat_tilt_diff (float): The difference between latitude and tilt angle in degrees.
-
-        Returns:
-        - float: Angular losses as a percentage.
-        """
-        # Coefficients for the weighted quadratic fit model
-        a = 11.3e-4
-        b = -11.9e-3
-        c = 2.87
-
-        # Calculate angular losses
-        angular_losses = a * lat_tilt_diff**2 + b * lat_tilt_diff + c
-        return angular_losses   

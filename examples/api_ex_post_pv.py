@@ -24,7 +24,8 @@ from gtfs4ev.analysis.evpvsynergies import EVPVSynergies
 # Configuration
 # ------------------------------------------------------------------------------
 
-LOAD_CURVE_FILE = "results/api_basic_simulation/charging_load_curve.csv"
+LOAD_CURVE_FILE = "results/api_basic_simulation/charging_load_curve.csv" 
+# /!\ You need to run a basic simulation first to obtain a load curve
 OUTPUT_FOLDER = "results/api_ex_post_pv"
 
 # Create the output folder if it does not exist
@@ -42,8 +43,8 @@ load_curve = pd.read_csv(LOAD_CURVE_FILE)
 
 pv = PVSimulator(
     environment={
-        "latitude": 0.17094549,
-        "longitude": 37.9039685,
+        "latitude": 0.17094549, 
+        "longitude": 37.9039685, 
         "year": 2020,
     },
     pv_module={
@@ -51,7 +52,7 @@ pv = PVSimulator(
         "temperature_coefficient": -0.004,
     },
     installation={
-        "type": "rooftop",  # Options: 'rooftop' or 'groundmounted_fixed'
+        "type": "freestanding_opt_tilt",  # Options: 'flat_roof' or 'freestanding_opt_tilt'
         "system_losses": 0.14,
     }
 )

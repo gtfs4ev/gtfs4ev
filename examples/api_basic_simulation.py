@@ -66,7 +66,7 @@ charging = ChargingSimulator(
         # Charging power levels (kW) and their relative availability/probability
         "depot": [[22, 0.5], [50, 0.5]],     # Depot chargers: 50% at 22 kW, 50% at 50 kW
         "terminal": [[150, 1.0]],            # Terminal chargers: 100% at 150 kW
-        "stop": [[0, 1.0]]                   # Terminal chargers: 100% at 0 kW (not used)
+        "stop": [[150, 1.0]]                 # Terminal chargers: 100% at 150 kW (for the sake of illustration, stop charging not used)
     }
 )
 
