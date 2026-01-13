@@ -1,0 +1,4 @@
+/* Change ONLY the top header background */
+.md-header, .md-tabs{
+  background-color: #080808;  /* your color */
+}

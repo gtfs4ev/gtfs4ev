@@ -32,7 +32,7 @@ trips_to_simulate = None # Simulates all trips
 energy_consumption_kWh_per_km = 0.39  # Vehicle energy consumption per kilometer (in kWh)
 
 charging_powers_kW = {
-    "depot": [[11, 0.5], [22, 0.5]],       # List of [power_kW, probability] for depot chargers
+    "depot": [[11, 0.5], [22, 0.5]],       # List of [power_kW, share] for depot chargers
     "terminal": [[100, 1.0]],              # Charging powers at terminals
     "stop": [[200, 1.0]]                   # Charging powers regular bus stops
 }
