@@ -108,7 +108,6 @@ Additional outputs can be enabled via configuration options, such as specific ve
 ---
 
 
-
 ## Minimal example using the Python API 
 
 This example is close to the CLI minimal example but uses the Python API. To run it, execute:
@@ -147,8 +146,3 @@ Other outputs (detailed trip sequences, per-stop charging, charging maps, fleet 
 3. Explore other example scripts (`api_ex_post_*`) for ex-post analyses like CO₂ savings, air pollution, or PV integration.
 4. Review the **Methodology** section for details on fleet simulation and charging computations.
 5. Refer to the **API Reference** for integration into your own Python scripts.
-
-
-
-
-
