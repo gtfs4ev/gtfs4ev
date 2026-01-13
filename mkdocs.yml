@@ -1,0 +1,46 @@
+site_name: GTFS4EV
+site_description: Python framework for simulating electric bus operations and charging demand using GTFS data 
+strict: false
+
+theme:
+  name: "material"
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: darkblue
+      accent: pink
+      toggle:
+        icon: material/weather-sunny
+        name: "Switch to dark mode"
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: darkblue
+      accent: pink
+      toggle:
+        icon: material/weather-night
+        name: "Switch to light mode"
+  features:
+    - announce.dismiss
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+  icon:
+    logo: "material/home"
+    next: fontawesome/solid/angle-right
+    previous: fontawesome/solid/angle-left
+    repo: fontawesome/brands/github-alt
+    view: material/eye
+
+repo_url: https://github.com/gtfs4ev/gtfs4ev
+repo_name: gtfs4ev/gtfs4ev
+edit_uri: edit/main/docs/
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
