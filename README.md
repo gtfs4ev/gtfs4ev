@@ -114,7 +114,7 @@ charging.compute_charging_load_curve(time_step_s=60).to_csv("path/to/output/load
 
 ## Documentation
 
-For detailed information about the model and its usage, please see the [documentation](https://gtfs4ev.github.io/gtfs4ev/). The documentation also contains step-by-step guides to the examples available in the `examples/` folder.
+For detailed information about the model, its usage, and the API, please see the [documentation](https://gtfs4ev.github.io/gtfs4ev/). The documentation also contains step-by-step guides to the minimal working examples available in the `examples/` folder.
 
 ## Suggestions and contributions
 
