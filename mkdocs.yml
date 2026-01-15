@@ -75,6 +75,14 @@ nav:
 
 plugins:
   - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: false
+            group_by_category: true
+            show_category_heading: true
 
 markdown_extensions:
   - tables
