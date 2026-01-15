@@ -12,12 +12,10 @@ From a methodological perspective, this step defines the interface between raw d
 
 ### About GTFS data
 
-The static General Transit Feed Specification (GTFS) is a standard data format with a **relational structure** used to describe public transport schedules and networks. A GTFS feed consists of multiple text files, each representing a specific aspect of the transport system (e.g. agencies, trips, shapes, etc). 
+The static General Transit Feed Specification (GTFS) is a standard data format with a **relational structure** used to describe public transport schedules and networks. As shown in Fig. 1, a GTFS feed consists of multiple text files, each representing a specific aspect of the transport system (e.g. agencies, trips, shapes, etc).
 
-<p>
-  <img src="../../img/gtfs_data_structure.png" style="float:left; width:80%;">
-</p>
-<div style="clear: both;"></div>
+![GTFS Data Structure](../../img/gtfs_data_structure.png)
+*Figure 1: Overview of GTFS data structure, showing the link between each table through identifiers.*
 
 These tables are linked through identifiers, and their correct interpretation relies strongly on the **consistency of these links across files**. As a result, additional validation and cleaning is recommended before the data can be used for simulation-based analyses.
 
