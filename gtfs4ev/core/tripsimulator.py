@@ -12,15 +12,61 @@ from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.utils import helpers as hlp
 
 class TripSimulator:
-    """A class simulating the operation of vehicles on a trip based on GTFS data."""
+    """
+    **Internal GTFS-based simulation engine** for a single trip.
+
+    !!! warning "Internal API"
+        This class is **not intended for direct use by end users**. 
+        It is an internal building block used by the `FleetSimulator` class. 
+
+    This class simulates the temporal and spatial operation of vehicles
+    assigned to a single GTFS trip. Using stop times, shapes, and frequency
+    definitions, it reconstructs:
+
+    - The **event-level sequence** of a single vehicle along the trip
+      (stops, terminals, and travelling segments)
+    - The **fleet operation schedule**, accounting for headways, looping
+      behavior, and potential transient regimes
+    - The **time-resolved spatial trajectory** of each vehicle
+    - An **interactive map visualization** of fleet movements
+
+    The simulator relies on a pre-loaded :class:`GTFSManager` instance.
+
+    Notes:
+        - Only GTFS trips with valid `frequencies.txt` entries are supported.
+        - All times are assumed to refer to a single service day (00:00–23:59).
+        - Shapes are assumed to be spatially consistent with stop locations.
+
+    Attributes:
+        gtfs_manager (GTFSManager): GTFS data manager providing access to GTFS tables.
+        trip_id (str): Identifier of the GTFS trip being simulated.
+        single_trip_sequence (pd.DataFrame or list): Event-level description of a single vehicle run.
+        fleet_operation (pd.DataFrame or list): Fleet-wide operational schedule.
+
+    Examples:
+        >>> simulator = TripSimulator(manager, "trip_42")
+        >>> simulator.compute_single_trip_sequence()
+        >>> simulator.compute_fleet_operation()
+        >>> traj = simulator.get_fleet_trajectory(time_step=120)
+    """
+
+    ## ============================================================
+    ## Constructor
+    ## ============================================================
 
     def __init__(self, gtfs_manager: GTFSManager, trip_id: str):
         """
-        Initializes the TripSimulator class.
+        Initialize a TripSimulator for a given GTFS trip.
+
+        This constructor binds the simulator to a GTFS dataset and validates
+        that the requested trip exists.
 
         Args:
-            gtfs_manager (GTFSManager): An instance of GTFSManager holding GTFS data.
-            trip_id (str): The trip ID to be simulated.
+            gtfs_manager (GTFSManager): Instance managing the GTFS dataset.
+            trip_id (str): Identifier of the trip to simulate.
+
+        Raises:
+            ValueError: If the trip ID is not found in the GTFS dataset.
         """
         self.gtfs_manager = gtfs_manager
         self.trip_id = trip_id
@@ -28,10 +74,18 @@ class TripSimulator:
         self._single_trip_sequence = None
         self._fleet_operation = None                
 
-    # Properties and Setters
+    ## ============================================================
+    ## Attributes
+    ## ============================================================
 
     @property
     def gtfs_manager(self) -> GTFSManager:
+        """
+        GTFS data manager associated with the simulator.
+
+        Returns:
+            GTFSManager: The GTFS manager instance.
+        """        
         return self._gtfs_manager
 
     @gtfs_manager.setter
@@ -42,6 +96,12 @@ class TripSimulator:
 
     @property
     def trip_id(self) -> str:
+        """
+        Identifier of the simulated GTFS trip.
+
+        Returns:
+            str: Trip identifier.
+        """
         return self._trip_id
 
     @trip_id.setter
@@ -54,21 +114,57 @@ class TripSimulator:
 
     @property
     def single_trip_sequence(self) -> pd.DataFrame:
-        """pd.DataFrame: The sequence of events of a single vehicle along the trip."""
+        """
+        Event-level sequence of a single vehicle performing the trip.
+
+        The sequence is ordered in time and contains alternating events such as:
+        - `at_terminal`
+        - `at_stop`
+        - `travelling`
+
+        Each event includes duration, distance, cumulative metrics, and geometry.
+
+        Returns:
+            pd.DataFrame or list[dict]: Structured representation of the trip events.
+        """
         return self._single_trip_sequence
 
     @property
     def fleet_operation(self) -> pd.DataFrame:
-        """pd.DataFrame: The operation schedule of all vehicles."""
+        """
+        Fleet-wide operation schedule for the simulated trip.
+
+        Each entry corresponds to a vehicle and includes:
+        - Time intervals of operation and non-operation
+        - Number of trip repetitions (possibly fractional)
+        - Aggregated travel, stop, and terminal times
+        - Total distance and operation duration
+
+        Returns:
+            pd.DataFrame or list[dict]: Fleet operation description.
+        """
         return self._fleet_operation
 
-    # Fleet operation
+    ## ============================================================
+    ## Fleet operation simulation
+    ## ============================================================
 
-    def compute_single_trip_sequence(self):
+    def compute_single_trip_sequence(self) -> None:
         """
-        Computes the travel sequence for a single trip based on GTFS data.
+        Compute the detailed event sequence for a single vehicle trip.
+
+        This method reconstructs the full temporal and spatial evolution
+        of one vehicle running the trip by:
+
+        - Ordering stops using GTFS stop times
+        - Projecting stops onto the trip shape
+        - Computing inter-stop travel distances and durations
+        - Generating a sequence of discrete events (stops, terminals, travel)
+
+        The result is stored internally in `self.single_trip_sequence`.
+
         Returns:
-            List[Dict]: A structured list of trip events.
+            None
         """
         self._single_trip_sequence = []
 
@@ -203,14 +299,28 @@ class TripSimulator:
 
         self._single_trip_sequence = sequence
 
-    def compute_fleet_operation(self, transient_regime: bool = False):
+    def compute_fleet_operation(self, transient_regime: bool = False) -> None:
         """
-        Computes fleet operation using a compact representation:
-        - One row per vehicle.
-        - Each row stores all sequences for that vehicle with start/end times and offset.
-        - Partial trip repetitions are accounted for using float values.
-        - Total travel distance is accumulated across all repetitions.
-        - Total travel duration (in seconds) is also added to the results.
+        Compute the fleet operation required to serve the trip frequencies.
+
+        This method expands the single-trip sequence into a fleet-level
+        operational plan based on GTFS frequency definitions. It supports:
+
+        - Looping operation (vehicles already in circulation)
+        - Transient regimes (vehicles progressively entering service)
+        - Partial trip repetitions at service boundaries
+        - Aggregation of distance and time metrics per vehicle
+
+        The result is stored internally in `self.fleet_operation`.
+
+        Args:
+            transient_regime (bool, optional): If True, vehicles start operation progressively after the service start time. If False, routes are assumed to be already populated with vehicles at the beginning of service. Defaults to False.
+
+        Raises:
+            ValueError: If no frequency data is available or if trip duration is zero.
+
+        Returns:
+            None
         """
         self._fleet_operation = []
 
@@ -428,10 +538,20 @@ class TripSimulator:
 
         self._fleet_operation = fleet_result
 
-    # Helper functions
+    ## ============================================================
+    ## Helpers
+    ## ============================================================
 
     def trip_duration_sec(self) -> int:
-        """Returns the duration of the trip in seconds."""
+        """
+        Compute the total duration of the trip.
+
+        The duration is defined as the time difference between the first
+        arrival and the last departure in the GTFS stop times.
+
+        Returns:
+            int: Trip duration in seconds.
+        """
         trip_stop_times = self.gtfs_manager.stop_times[self.gtfs_manager.stop_times['trip_id'] == self.trip_id]
         duration = (trip_stop_times['departure_time'].iloc[-1] - trip_stop_times['arrival_time'].iloc[0]).total_seconds()
 
@@ -439,10 +559,17 @@ class TripSimulator:
 
     def max_vehicles_in_operation(self) -> int:
         """
-        Estimates the number of buses required to maintain the highest frequency in a given trip.
+        Estimate the maximum number of vehicles required to operate the trip.
+
+        The estimate is based on:
+        - Trip duration
+        - Minimum headway across all frequency definitions
 
         Returns:
-        - int: Estimated number of buses needed.
+            int: Estimated maximum number of vehicles.
+
+        Raises:
+            ValueError: If no frequency data is available for the trip.
         """
         # Get the frequencies for this trip
         trip_frequencies = self.gtfs_manager.frequencies[self.gtfs_manager.frequencies['trip_id'] == self.trip_id]
@@ -458,24 +585,29 @@ class TripSimulator:
 
         return max(1, round(max_num_vehicles))
 
-    # Fleet trajectory
+    ## ============================================================
+    ## Trajectory reconstruction and visualization
+    ## ============================================================
 
     def get_fleet_trajectory(self, time_step: int) -> pd.DataFrame:
         """
-        Simulation of fleet operation using pre-computed fleet operation
-        (self._fleet_operation). This method uses the base trip sequence from 
-        self._single_trip_sequence and, for each travel sequence stored in each 
-        fleet operation record, computes the location at every time step as a 
-        Point object.
-        
+        Compute time-resolved spatial trajectories for the entire fleet.
+
+        Using the precomputed fleet operation and single-trip sequence,
+        this method reconstructs vehicle locations at a fixed temporal
+        resolution throughout the day.
+
+        Each vehicle is represented by a row, and each column corresponds
+        to a time step. Cells contain Shapely `Point` geometries or `None`
+        when the vehicle is not operating.
+
         Args:
-            time_step (int): Time step in seconds.
-        
+            time_step (int): Temporal resolution in seconds.
+
         Returns:
-            pd.DataFrame: DataFrame with a row per vehicle (indexed by vehicle ID)
-                          and columns for each time step (HH:MM:SS). Each cell contains 
-                          a Point object (or None) representing the vehicle location.
-        """       
+            pd.DataFrame: Fleet trajectory matrix indexed by vehicle ID
+            and time (HH:MM:SS).
+        """   
         # Ensure that fleet operation data exists; if not, compute it.
         if not hasattr(self, '_fleet_operation') or self._fleet_operation is None:
             self.compute_fleet_operation()
@@ -563,20 +695,27 @@ class TripSimulator:
 
         return pd.DataFrame(fleet_location, index=vehicle_ids, columns=times)
 
-    # Visualisation
-
     def get_fleet_trajectory_map(self, fleet_trajectory: pd.DataFrame) -> folium.Map:
         """
-        Generates an interactive folium map with a time slider using the simulated fleet operation data.
+        Generate an interactive time-slider map of fleet trajectories.
 
-        This function only works if the time step is exactly 2 minutes.
+        This method visualizes the simulated fleet operation using a Folium
+        map with a temporal slider. Vehicle positions are animated over time,
+        and the trip shape is displayed as a reference.
+
+        Notes:
+            - This visualization currently only supports a **2-minute time step**.
+            - Vehicles at identical locations are slightly jittered for clarity.
 
         Args:
-            fleet_trajectory (pd.DataFrame): DataFrame containing vehicle trajectory data.
+            fleet_trajectory (pd.DataFrame): Output of `get_fleet_trajectory`.
 
         Returns:
-            folium.Map: A folium map with a time slider visualization of vehicle movements.
-        """       
+            folium.Map: Interactive map with animated vehicle movements.
+
+        Raises:
+            ValueError: If no valid trajectory data is available or if the time step is incompatible.
+        """    
         # Transform the fleet operation DataFrame into a long-format DataFrame
         data = []
         for vehicle_id in fleet_trajectory.index:

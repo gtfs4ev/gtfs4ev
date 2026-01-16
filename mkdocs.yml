@@ -68,6 +68,9 @@ nav:
       - Ex-post Analysis:
           - PVSimulator: api/ex-post-analysis/pvsimulator.md
 
+      - Internal API:
+          - TripSimulator: api/internal-api/trip-simulator.md
+
   - Appendix:
       - References: appendix/references.md
       - Contributing: appendix/contributing.md
