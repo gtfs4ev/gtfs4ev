@@ -39,6 +39,12 @@ theme:
 
 extra_css:
   - extra.css
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
+
+extra_javascript:
+  - katex.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js
 
 repo_url: https://github.com/gtfs4ev/gtfs4ev
 repo_name: gtfs4ev/gtfs4ev
@@ -105,3 +111,5 @@ markdown_extensions:
   - pymdownx.magiclink
   - pymdownx.snippets:
       base_path: ["docs", "."]
+  - pymdownx.arithmatex:
+      generic: true

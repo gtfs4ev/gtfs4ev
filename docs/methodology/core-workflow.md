@@ -35,5 +35,58 @@ The consistency process therefore follows two complementary principles:
 
 This iterative cleaning strategy is intentionally restrictive. Trips that lack essential information for fleet operation simulation are removed, and subsequently any remaining entities that are no longer referenced by the retained trips.
 
+---
 
+## Fleet operation simulation
 
+Fleet operation simulation constitutes the **second core step** of the GTFS4EV workflow. Its objective is to transform static, schedule-based GTFS information into a **dynamic representation of vehicle operations** across all trips in the network.
+
+The overall fleet operation is obtained by repeating the **same simulation procedure for each GTFS trip**. Trips are therefore treated **independently**, and the simulation logic is applied separately to each trip contained in the dataset. This constitutes an important modeling assumption: **every vehicle is operating on only one trip throughout the day**. While restrictive, this assumption enables a transparent and computationally efficient representation of fleet activity and is well suited for energy demand and charging analyses.
+
+From a methodological perspective, fleet operation simulation for a single trip relies on a **two-level approach**:
+
+1. **Travel event sequence for a vehicle on a given trip**
+   Vehicle behavior along a given GTFS trip is simulated in detail, resulting in a **travel event sequence** that describes stops, terminals, and travelling segments, together with their associated durations, distances, and geometries.
+
+2. **Fleet-level operation based on service frequencies**
+   Based on the travel event sequence, the **number of vehicles required** and their **dispatch over time and space** are simulated according to the headway-based service definitions provided in `frequencies.txt`. This step results in a complete description of the **operation of all vehicles assigned to the trip** over the service day.
+
+### Travel event sequence for a vehicle on a given trip
+
+For a given trip, the simulation constructs a travel event sequence through:
+
+1. **Temporal and spatial normalization**: Stop times are ordered and expressed relative to the trip start, and stop locations are projected onto the associated route geometry. This ensures consistency in time and space while removing dependence on absolute clock time and shape orientation.
+
+2. **Event-based decomposition of the trip**: The trip is represented as a sequence of discrete events, each defined by:
+
+      * A status (at_terminal, at_stop, or travelling)
+      * A duration
+      * A distance traveled (for travelling events only)
+      * A geometry (point or line segment)
+
+This event-based representation constitutes the core abstraction of vehicle behavior along a trip.
+
+### Fleet-level operation based on service frequencies
+
+Once the travel event sequence has been established, it is expanded into a **fleet-level operation** using the headway-based service definitions provided in `frequencies.txt`. For each frequency period associated with the trip, the following logic is applied:
+
+1. **Estimation of required fleet size**  
+   The number of vehicles $N$ operating on the trip is estimated based on the total duration of the trip ($T_{\text{trip}}$) and the headway time ($h$) for a given service frequency period ($\lceil \cdot \rceil$ is a ceiling function): 
+   
+   $$
+   N = \left\lceil \frac{T_{\text{trip}}}{h} \right\rceil
+   $$  
+
+2. **Vehicle injection and circulation logic**  
+   Vehicles are assigned staggered start times based on the headway. Two operating regimes are supported:
+
+      * *Steady-state regime*, in which vehicles are assumed to be already dispatched along the trip at the beginning of the service window  
+      * *Transient regime*, in which vehicles progressively enter service after the start time  
+
+3. **Partial trip handling at service boundaries**  
+   Trips that overlap the start or end of a frequency period are clipped in time. This ensures temporal consistency while avoiding artificial truncation effects.
+
+4. **Vehicle operation schedeule and vehicle-level indicators**  
+   For each vehicle, the simulation generates for every vehicle a complete operating schedule over the day, along with vehicle-level indicators (total distance traveled, total operating time, time spent travelling, stopping, and idling at terminals)
+
+The output of this step is a **compact fleet operation representation**, with one record per vehicle, along with some vehicle-level metrics.
