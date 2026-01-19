@@ -141,6 +141,7 @@ If different charging strategies are provided, they are applied sequentially unt
 ### Evaluation of charging feasibility
 
 For each vehicle, the feasibility of a charging scenario is evaluated by comparing the **total energy charged** to the vehicle’s daily charging demand. At the trip and fleet level, the **share of feasible charging schedules** can also be derived.
+
 ### Battery capacity implications
 
 Beyond charging schedules, scenario-based charging also derives **minimum battery capacity requirements** for every vehicle. By combining charging and driving events over the service day, the simulation reconstructs the vehicle’s cumulative energy balance:
@@ -149,7 +150,7 @@ $$
 B(t) = \sum_{k \leq t} E_k^{\text{charge}} - \sum_{l \leq t} E_l^{\text{drive}}
 $$
 
-From this battery trajectory, two key indicators are derived:
+From this battery trajectory, two key indicators are derived. Fig. 2 provides a schematic illustration of the cumulative energy balance of a vehicle over a service day and the derivation of the associated battery requirements.
 
 - The **minimum required battery capacity**:
   $$
@@ -160,6 +161,10 @@ From this battery trajectory, two key indicators are derived:
   $$
   \text{SOC}_{\text{start}} = -\min(B(t))
   $$
+
+
+![Schematic illustration of battery capacity and initial state-of-charge derivation](../img/min_bat_capacity.png)
+*Figure 2: Schematic representation of the cumulative energy balance \(B(t)\) of a vehicle over a 24-hour service day. Downward segments correspond to travelling events (energy consumption), while upward segments correspond to charging events. The minimum required battery capacity is given by the difference between the maximum and minimum values of \(B(t)\), while the minimum initial state of charge corresponds to the absolute value of the minimum of \(B(t)\).*
 
 These indicators are **scenario-dependent** and enable direct comparison of charging strategies in terms of onboard storage needs.
 

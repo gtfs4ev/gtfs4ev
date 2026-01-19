@@ -33,11 +33,17 @@ class ChargingSimulator:
     Multiple charging strategies can be provided and are then applied in sequence 
     until energy needs are satisfied. 
 
-    Supported predefined charging strategies:
-        - "terminal_random": Attempts charging during 'at_terminal' statuses with a certain probability.
-        - "stop_random": Attempts charging during 'at_stop' statuses with a certain probability.
-        - "depot_day": Tries charging during daytime idle (non-operating) periods, excluding first/last events.
-        - "depot_night": Charges either at the end or beginning of the day (or both), based on depot availability.
+    The following predifined charging strategy identifiers are supported:
+
+    - `"terminal_random"`: Attempts charging at terminal stops with a given probability.
+
+    - `"terminal_specific_random"`: Attempts charging only at a **user-defined subset of terminal stop IDs**  with a given probability.
+
+    - `"stop_random"`:  Attempts charging at intermediate stops (`at_stop` events) with a given probability.
+
+    - `"depot_day"`: Attempts charging during daytime non-operating periods.
+
+    - `"depot_night"` Attempts charging at the beginning and/or end of the service day.
 
     Charging power availability is defined through the `charging_powers_kW`
     dictionary, which specifies **discrete charging power options and their
@@ -242,8 +248,19 @@ class ChargingSimulator:
         Populates `self.charging_schedule_pervehicle` and `self.charging_schedule_perstop`
 
         Args:
-            charging_strategies (list[str]): Ordered list of charging strategy identifiers.
-            **kwargs: Additional parameters forwarded to strategy handlers.
+            charging_strategies (list[str or callable]):
+                Ordered list of charging strategies. Each element can be either:
+                - A predefined strategy identifier (e.g. "terminal_random",
+                  "terminal_specific_random", "stop_random", "depot_day",
+                  "depot_night")
+                - A user-defined callable with signature `strategy(travel_sequence, **kwargs)`
+
+            **kwargs:
+                Additional keyword arguments forwarded to charging strategy
+                handlers.
+
+                Currently supported keyword arguments:
+                    - specific_terminal_ids (list[str]): List of terminal stop IDs eligible for charging when using the "terminal_specific_random" strategy.
 
         Returns:
             None
