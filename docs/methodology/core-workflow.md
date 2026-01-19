@@ -90,3 +90,84 @@ Once the travel event sequence has been established, it is expanded into a **fle
    For each vehicle, the simulation generates for every vehicle a complete operating schedule over the day, along with vehicle-level indicators (total distance traveled, total operating time, time spent travelling, stopping, and idling at terminals)
 
 The output of this step is a **compact fleet operation representation**, with one record per vehicle, along with some vehicle-level metrics.
+
+---
+
+## Scenario-based charging
+
+Scenario-based charging constitutes the **third core step** of the workflow. Its main objective is to translate simulated fleet operations into **vehicle-level charging schedules**, under a set of explicitly defined charging assumptions. This step enables the exploration of alternative **charging scenarios** that differ in charging locations, charging power availability, charging strategies (behavioral rules), and prioritization strategies.
+
+From a methodological perspective, scenario-based charging operates as a **post-processing layer** applied to the fleet operation simulation. Vehicle operations are not altered; instead, energy consumption and charging behavior are constructed based on the detailed vehicle operation schedules obtained from fleet simulation.
+
+### Vehicle-level energy demand
+
+For each simulated vehicle, the **travel sequence** is reconstructed by combining operating and non-operating periods (travelling, stops, terminals, depot idle times). Based on this sequence, the vehicle’s daily energy need is computed as:
+
+$$
+E_{\text{need}} = \sum_{i} d_i \cdot e_{\text{km}} + d_{\text{sec}} \cdot e_{\text{km}}
+$$
+
+where:
+
+- $d_i$ is the distance traveled during travel event $i$  
+- $e_{\text{km}}$ is the vehicle energy consumption rate (kWh/km)  
+- $d_{\text{sec}}$ is an optional **security driving distance** representing operational margins  
+
+### Charging strategies
+
+Charging behavior is defined through one or several **charging strategies**, applied sequentially and in priority order. A charging strategy is therefore characterized by:
+
+1. **A set of charging strategies**, such as: opportunistic charging at terminals or stops, daytime depot charging during non-operating periods, etc
+
+2. **Behavioral parameters**: charging decisions at stops or terminals, restrictions to specific terminal, optional travel-time to the depots
+
+3. **Charging power availability**, defined through discrete charging power options and their selection probabilities for each location type (e.g. depot, terminal, stop).
+
+For a given vehicle, each charging strategy scans the travel sequence to *generate charging events* subject to the following constraints:
+
+- Available dwell time $\Delta t$
+- Selected charging power $P$
+- Remaining unmet energy demand $E_{\text{rem}}$
+- No temporal overlap with previously assigned charging events
+
+The energy charged during a single charging event $j$ is computed as:
+
+$$
+E_j = \min \left( P_j \cdot \Delta t_j,\; E_{\text{rem}} \right)
+$$
+
+If different charging strategies are provided, they are applied sequentially until the total energy requirement is met or no further charging opportunities are available.
+
+### Evaluation of charging feasibility
+
+For each vehicle, the feasibility of a charging scenario is evaluated by comparing the **total energy charged** to the vehicle’s daily charging demand. At the trip and fleet level, the **share of feasible charging schedules** can also be derived.
+### Battery capacity implications
+
+Beyond charging schedules, scenario-based charging also derives **minimum battery capacity requirements** for every vehicle. By combining charging and driving events over the service day, the simulation reconstructs the vehicle’s cumulative energy balance:
+
+$$
+B(t) = \sum_{k \leq t} E_k^{\text{charge}} - \sum_{l \leq t} E_l^{\text{drive}}
+$$
+
+From this battery trajectory, two key indicators are derived:
+
+- The **minimum required battery capacity**:
+  $$
+  C_{\min} = \max(B(t)) - \min(B(t))
+  $$
+
+- The **minimum initial state of charge** required at the start of the day:
+  $$
+  \text{SOC}_{\text{start}} = -\min(B(t))
+  $$
+
+These indicators are **scenario-dependent** and enable direct comparison of charging strategies in terms of onboard storage needs.
+
+### Per-stop charging demand and charger requirements
+
+Charging events from all vehicles are aggregated at the **stop or depot level** to obtain a time-resolved representation of concurrent charging activity. For each location, overlapping charging sessions are combined to compute:
+
+- The **instantaneous charging power** demand, enabling also the construction of **charging load curves** at different aggregation levels
+- The **number of vehicles charging simultaneously**
+
+The **maximum number of concurrently charging vehicles** at a given stop provides a direct proxy for the **minimum number of chargers** required at that location under the assumed scenario. 
