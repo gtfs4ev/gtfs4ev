@@ -30,7 +30,7 @@ class TripSimulator:
     - The **time-resolved spatial trajectory** of each vehicle
     - An **interactive map visualization** of fleet movements
 
-    The simulator relies on a pre-loaded :class:`GTFSManager` instance.
+    The simulator relies on a pre-loaded `GTFSManager` instance.
 
     Notes:
         - Only GTFS trips with valid `frequencies.txt` entries are supported.
