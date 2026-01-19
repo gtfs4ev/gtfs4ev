@@ -35,8 +35,8 @@ class FleetSimulator:
     Attributes:
         gtfs_manager (GTFSManager): GTFS data manager providing access to GTFS tables.
         trip_ids (list[str]): List of GTFS trip identifiers included in the simulation.
-        fleet_operation (pd.DataFrame): Aggregated fleet operation schedule.
-        trip_travel_sequences (pd.DataFrame): Aggregated event-level travel sequences.
+        fleet_operation (pd.DataFrame): Aggregated fleet operation schedule (result - computed after simulation).
+        trip_travel_sequences (pd.DataFrame): Aggregated event-level travel sequences (result - computed after simulation).
 
     Examples:
         >>> simulator = FleetSimulator(manager, trip_ids=["trip_1", "trip_2"])

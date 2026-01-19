@@ -40,8 +40,8 @@ class TripSimulator:
     Attributes:
         gtfs_manager (GTFSManager): GTFS data manager providing access to GTFS tables.
         trip_id (str): Identifier of the GTFS trip being simulated.
-        single_trip_sequence (pd.DataFrame or list): Event-level description of a single vehicle run.
-        fleet_operation (pd.DataFrame or list): Fleet-wide operational schedule.
+        single_trip_sequence (pd.DataFrame or list): Event-level description of a single vehicle run (result - computed after simulation).
+        fleet_operation (pd.DataFrame or list): Fleet-wide operational schedule (result - computed after simulation).
 
     Examples:
         >>> simulator = TripSimulator(manager, "trip_42")

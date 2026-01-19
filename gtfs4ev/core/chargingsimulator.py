@@ -15,16 +15,89 @@ from gtfs4ev.core.fleetsimulator import FleetSimulator
 
 class ChargingSimulator:
     """
-    A class simulating the charging of electric vehicles based on the mobility simulation and charging strategy."""
+    **Electric vehicle charging simulation engine** driven by fleet operations.
+
+    The `ChargingSimulator` takes fleet operation outputs and reconstructs
+    vehicle-level energy consumption and charging behavior. It supports
+    multiple charging strategies.
+
+    The simulator computes:
+
+    - **Vehicle-level charging schedules**
+    - **Stop-level aggregated charging demand**
+    - **Battery capacity requirements**
+    - **Charging load curves by location**
+    - **Map of charging activity**
+
+    Charging strategies can be predefined identifiers or user-defined callables.
+    Multiple charging strategies can be provided and are then applied in sequence 
+    until energy needs are satisfied. 
+
+    Supported predefined charging strategies:
+        - "terminal_random": Attempts charging during 'at_terminal' statuses with a certain probability.
+        - "stop_random": Attempts charging during 'at_stop' statuses with a certain probability.
+        - "depot_day": Tries charging during daytime idle (non-operating) periods, excluding first/last events.
+        - "depot_night": Charges either at the end or beginning of the day (or both), based on depot availability.
+
+    Charging power availability is defined through the `charging_powers_kW`
+    dictionary, which specifies **discrete charging power options and their
+    selection probabilities for each location type**.
+
+    Notes:
+        - Fleet operation must be computed before initializing this simulator.
+        - Charging is simulated over a single service day.
+        - Overlapping charging events are automatically prevented.
+
+    Attributes:
+        fleet_sim (FleetSimulator): Fleet simulator containing vehicle operations.
+        energy_consumption_kWh_per_km (float): Vehicle energy consumption rate.
+        security_driving_distance_km (float): Safety distance added to energy needs.
+        charging_powers_kW (dict): Charging power distributions by location type.
+        charging_schedule_pervehicle (pd.DataFrame): Vehicle-level charging results (computed after simulation).
+        charging_schedule_perstop (pd.DataFrame): Stop-level aggregated charging results (computed after simulation).
+
+    Examples:
+        >>> charging_sim = ChargingSimulator(fleet_sim, 1.2, 10.0, charging_powers_kW)
+        >>> charging_sim.compute_charging_schedule(["depot_night", "terminal_random"])
+        >>> df_vehicle = charging_sim.charging_schedule_pervehicle
+
+    **Example configuration** for charging powers:
+
+        charging_powers_kW = {
+            "depot": [
+                [22, 0.6],    # 22 kW charger, 60% probability
+                [150, 0.4]    # 150 kW charger, 40% probability
+            ],
+            "terminal": [
+                [50, 1.0]     # 50 kW charger, always selected
+            ],
+            "stop": [
+                [50, 0.7],    # 50 kW charger, 70% probability
+                [120, 0.3]     # 120 kW charger, 30% probability
+            ]
+        }
+    """
+
+    ## ============================================================
+    ## Constructor
+    ## ============================================================
 
     def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, security_driving_distance_km: float , charging_powers_kW: dict = None):
         """
-        Initializes the Charging Simulator.
+        Initialize a ChargingSimulator based on an existing fleet simulation.
+
+        The constructor validates that fleet operations have already been
+        computed and initializes all parameters required for energy and
+        charging simulations.
 
         Args:
-            fleet_sim: An instance of a FleetSimulator class containing vehicle operations.
-            vehicle_properties (dict): A dictionary of vehicle properties (e.g., energy consumption).
-            charging_powers_kw (dict): A dictionary of vehicle_id: charging power in kW.
+            fleet_sim (FleetSimulator): Fleet simulator containing vehicle operations.
+            energy_consumption_kWh_per_km (float): Energy consumption per kilometer.
+            security_driving_distance_km (float): Additional safety distance in kilometers.
+            charging_powers_kW (dict): Charging power distributions by location type.
+
+        Raises:
+            ValueError: If fleet operation data is missing or parameters are invalid.
         """
         print("=========================================")
         print(f"INFO \t Creation of a ChargingSimulator object.")
@@ -40,10 +113,18 @@ class ChargingSimulator:
 
         print("INFO \t Successful initialization of the ChargingSimulator. ")
 
-    # Properties and Setters
+    ## ============================================================
+    ## Attributes
+    ## ============================================================
 
     @property
-    def fleet_sim(self):
+    def fleet_sim(self) -> FleetSimulator:
+        """
+        Fleet simulator used as input for charging simulations.
+
+        Returns:
+            FleetSimulator: Fleet simulator with computed operations.
+        """
         return self._fleet_sim
 
     @fleet_sim.setter
@@ -53,7 +134,13 @@ class ChargingSimulator:
         self._fleet_sim = value
 
     @property
-    def energy_consumption_kWh_per_km(self):
+    def energy_consumption_kWh_per_km(self) -> float:
+        """
+        Energy consumption rate of vehicles.
+
+        Returns:
+            float: Energy consumption in kWh per kilometer.
+        """
         return self._energy_consumption_kWh_per_km
 
     @energy_consumption_kWh_per_km.setter
@@ -63,7 +150,13 @@ class ChargingSimulator:
         self._energy_consumption_kWh_per_km = value
 
     @property
-    def security_driving_distance_km(self):
+    def security_driving_distance_km(self) -> float:
+        """
+        Safety driving distance added to daily energy needs.
+
+        Returns:
+            float: Safety distance in kilometers.
+        """
         return self._security_driving_distance_km
 
     @security_driving_distance_km.setter
@@ -73,7 +166,13 @@ class ChargingSimulator:
         self._security_driving_distance_km = value
 
     @property
-    def charging_powers_kW(self):
+    def charging_powers_kW(self) -> dict:
+        """
+        Charging power distributions by location type.
+
+        Returns:
+            dict: Mapping of location type to charging power distributions.
+        """
         return self._charging_powers_kW
 
     @charging_powers_kW.setter
@@ -95,41 +194,59 @@ class ChargingSimulator:
         self._charging_powers_kW = value
 
     @property
-    def charging_schedule_pervehicle(self):
-        """Gets the pd dataframe with charging schedule for every vehicle."""
+    def charging_schedule_pervehicle(self) -> pd.DataFrame:
+        """
+        Vehicle-level charging schedules.
+
+        Returns:
+            pd.DataFrame: Charging schedules and battery metrics per vehicle.
+        """
         return self._charging_schedule_pervehicle
 
     @property
-    def charging_schedule_perstop(self):
-        """Gets the pd dataframe with charging schedule for every stop."""
+    def charging_schedule_perstop(self) -> pd.DataFrame:
+        """
+        Stop-level aggregated charging schedules.
+
+        Returns:
+            pd.DataFrame: Aggregated charging demand per stop.
+        """
         return self._charging_schedule_perstop
 
-    # Charging schedule
+    ## ============================================================
+    ## Charging schedule computation
+    ## ============================================================
 
-    def compute_charging_schedule(self, charging_strategies: list[str], **kwargs):
+    def compute_charging_schedule(self, charging_strategies: list[str], **kwargs) -> None:
         """
-        Computes the vehicle-level and stop-level charging schedules using a list of charging strategies.
+        Compute vehicle-level and stop-level charging schedules.
 
-        For each vehicle:
+        This method reconstructs vehicle travel timelines, estimates energy needs,
+        and applies a sequence of charging strategies until the required energy
+        is satisfied or no further charging is possible.
+
+        Charging strategies are applied in priority order and may be predefined
+        identifiers or user-provided callables. Charging strategies are provided as a list of string identifiers, 
+        each corresponding to a known strategy supported by the `_generate_charging_events_for_strategy` method.
+
+        For each vehicle, the method:
+
         1. Reconstructs the detailed travel sequence based on operational data and predefined trip structure.
         2. Estimates the total energy need based on distance traveled and energy consumption rate.
         3. Applies each charging strategy (in priority order) to generate charging events.
         4. Accepts new charging events until the energy need is met.
-        5. Records the charging events, energy requirement, remaining unmet energy, and minimum required battery capacity.
-
-        Charging strategies are provided as a list of string identifiers, each corresponding to a known strategy
-        supported by the `generate_charging_events_for_strategy` method.
+        5. Records the charging events, energy requirement, remaining unmet energy, and minimum required battery capacity.    
 
         The method also computes stop-level charging statistics by aggregating all vehicle charging events.
 
-        Parameters:
-        - charging_strategy (list[str]): Ordered list of strategy names to apply for charging (e.g., ["depot", "terminal", "opportunity"]).
-        - **kwargs: Additional keyword arguments passed to each strategy handler.
+        Populates `self.charging_schedule_pervehicle` and `self.charging_schedule_perstop`
+
+        Args:
+            charging_strategies (list[str]): Ordered list of charging strategy identifiers.
+            **kwargs: Additional parameters forwarded to strategy handlers.
 
         Returns:
-        - Updates the internal attributes:
-            - self._charging_schedule_pervehicle: DataFrame with per-vehicle charging schedules.
-            - self.aggregate_charging_by_stop(): Updates internal stop-level charging summary.
+            None
         """
         print("INFO \t Computing the charging schedule...")
 
@@ -159,9 +276,181 @@ class ChargingSimulator:
         self._charging_schedule_perstop = self._aggregate_charging_by_stop()
         print(f"\t Charging schedule computation completed.")
 
+    ## ============================================================
+    ## Charging load curve
+    ## ============================================================
+
+    def compute_charging_load_curve(self, time_step_s: int) -> pd.DataFrame:
+        """
+        Compute aggregated charging load curves by location type.
+
+        Args:
+            time_step_s (int): Time resolution in seconds.
+
+        Returns:
+            pd.DataFrame: Time series of aggregated charging power by location.
+        """
+        print("INFO \t Computing the charging load curve... ")
+
+        # 1) Flatten all charging sessions
+        all_sessions = []
+        for _, row in self.charging_schedule_pervehicle.iterrows():
+            all_sessions.extend(row['charging_sequence'])
+        sessions = pd.DataFrame(all_sessions)
+
+        # 2) Convert HH:MM:SS → seconds since midnight
+        def to_sec(hms: str) -> int:
+            h, m, s = map(int, hms.split(':'))
+            return h * 3600 + m * 60 + s
+
+        sessions['start_sec'] = sessions['start_time'].map(to_sec)
+        sessions['end_sec']   = sessions['end_time'].  map(to_sec)
+
+        # 2a) Split sessions that cross midnight
+        over_midnight = sessions['end_sec'] < sessions['start_sec']
+        if over_midnight.any():
+            wrap = sessions[over_midnight].copy()
+            # first part: start → midnight
+            wrap['end_sec'] = 86400
+            # second part: midnight → original end
+            wrap2 = wrap.copy()
+            wrap2['start_sec'] = 0
+            wrap2['end_sec']   = sessions.loc[over_midnight, 'end_sec'].values + 86400 - wrap.loc[over_midnight, 'start_sec'].values
+            sessions.loc[over_midnight, 'end_sec'] = 86400
+            sessions = pd.concat([sessions, wrap2], ignore_index=True)
+
+        # 3) Prepare time axis and predefined location types
+        full_day_sec = np.arange(0, 86400, time_step_s)
+        n_steps = full_day_sec.shape[0]
+        predefined_locations = ['depot', 'stop', 'terminal']
+        loc_to_col = {loc: i for i, loc in enumerate(predefined_locations)}
+
+        # 4) Build empty load matrix (steps × locations)
+        load_matrix = np.zeros((n_steps, len(predefined_locations)), dtype=float)
+
+        # 5) Accumulate each session’s power by slicing
+        for _, sess in sessions.iterrows():
+            start_idx = np.searchsorted(full_day_sec, sess['start_sec'],  side='left')
+            end_idx   = np.searchsorted(full_day_sec, sess['end_sec'],    side='left')
+            col_idx   = loc_to_col[sess['location']]
+            load_matrix[start_idx:end_idx, col_idx] += sess['power']
+
+        # 6) Build the DataFrame
+        #    - index as datetime.time
+        #    - insert time_h
+        times = [(datetime(1900,1,1) + timedelta(seconds=int(s))).time()
+                 for s in full_day_sec]
+        df = pd.DataFrame(load_matrix, index=times, columns=predefined_locations)
+        df.index.name = 'time'
+        df.insert(0, 'time_h', full_day_sec / 3600.0)
+
+        return df
+
+    ## ============================================================
+    ## Visualization
+    ## ============================================================
+
+    def generate_charging_map(self, stop_charging_schedule, filepath) -> None:
+        """
+        Generate an interactive map visualizing charging activity at stops.
+
+        Args:
+            stop_charging_schedule (pd.DataFrame): Stop-level charging results.
+            filepath (str): Output path for the generated HTML map.
+
+        Returns:
+            None
+        """     
+        df = stop_charging_schedule
+
+        valid = df['coordinates'].apply(lambda x: x != (None, None))
+        df_valid = df[valid]
+
+        if df_valid.empty:
+            print(f"ALERT \t No valid stop coordinates found. The stop map will be empty.")
+            center = [0, 0]
+        else:
+            avg_lat = df_valid['coordinates'].apply(lambda x: x[0]).mean()
+            avg_lon = df_valid['coordinates'].apply(lambda x: x[1]).mean()
+            center = [avg_lat, avg_lon]
+
+        m = folium.Map(location=center, zoom_start=12)
+
+        # Define the properties to plot
+        layers_info = {
+            "Energy Charged (kWh)": ("total_energy_kWh", cm.linear.YlOrRd_09),
+            "Peak Power (kW)": ("peak_power_kW", cm.linear.PuBu_09),
+            "Max Vehicles": ("max_vehicles", cm.linear.YlGnBu_09)
+        }
+
+        for name, (col, colormap) in layers_info.items():
+            # Color marker layer
+            fg_markers = folium.FeatureGroup(name=f"{name} (Details)")
+            values = df_valid[col].dropna()
+
+            # Crée une nouvelle instance de la palette à chaque fois
+            raw_colormap = colormap  # sauvegarde le modèle
+            vmin, vmax = values.min(), values.max()
+            if pd.isna(vmin) or pd.isna(vmax):
+                print(f"ALERT \t No data for {name}")
+                continue
+
+            # Crée une nouvelle colormap propre
+            colormap = raw_colormap.__class__(raw_colormap.colors).scale(vmin, vmax)
+            colormap.caption = name
+
+            for _, row in df_valid.iterrows():
+                val = row[col]
+                if pd.notnull(val):
+                    color = colormap(val)
+                    lat, lon = row['coordinates']
+                    folium.CircleMarker(
+                        location=[lat, lon],
+                        radius=8,
+                        color=color,
+                        fill=True,
+                        fill_opacity=0.7,
+                        weight=0.5,
+                        popup=folium.Popup(
+                            f"Stop ID: {row['stop_id']}<br>"
+                            f"Location: {row['location']}<br>"
+                            f"{name}: {val:.2f}", max_width=300
+                        )
+                    ).add_to(fg_markers)
+
+            fg_markers.add_to(m)
+            colormap.add_to(m)
+
+            # Heatmap layer
+            heat_data = [
+                [row['coordinates'][0], row['coordinates'][1], row[col]]
+                for _, row in df_valid.iterrows()
+                if pd.notnull(row[col])
+            ]
+            if heat_data:
+                HeatMap(
+                    heat_data,
+                    name=f"{name} (Heatmap)",
+                    min_opacity=0.4,
+                    max_opacity=0.8,
+                    radius=25,
+                    blur=15,
+                ).add_to(m)
+
+        folium.LayerControl(collapsed=False).add_to(m)
+        m.save(filepath)
+
+    ## ============================================================
+    ## Internal helpers
+    ## ============================================================
 
     def _group_trip_events_by_id(self):
-        """Groups travel events by trip_id into a dictionary."""
+        """
+        Group base travel events by trip identifier.
+
+        Returns:
+            dict: Mapping of trip_id to ordered travel events.
+        """
         grouped = {}
         for _, event in self.fleet_sim.trip_travel_sequences.iterrows():
             trip_id = event["trip_id"]
@@ -169,7 +458,12 @@ class ChargingSimulator:
         return grouped
 
     def _construct_travel_sequence(self, vehicle_record, trip_base_sequences):
-        """Reconstructs a detailed travel sequence from the base and actual sequences."""
+        """
+        Reconstruct a detailed travel sequence for a single vehicle.
+
+        Returns:
+            list[dict]: Time-resolved travel events.
+        """
         trip_id = vehicle_record.get("trip_id", None)
         vehicle_sequences = vehicle_record["travel_sequences"]
         base_seq = trip_base_sequences.get(trip_id, [])
@@ -194,7 +488,18 @@ class ChargingSimulator:
         return travel_sequence
 
     def _generate_segment_sequence(self, seq, base_seq, base_durations, base_distances, base_statuses, base_stop_ids, base_cumulative, offset_from_start):
-        """Breaks a single time interval into base-sequence-aligned segments, with offset applied."""
+        """
+        Breaks a single time interval into base-sequence-aligned segments, with offset applied.
+
+        Returns:
+            list of dict: Each dict represents a segment with keys:
+                - "start_time" (str): Segment start in "%H:%M:%S" format.
+                - "end_time" (str): Segment end in "%H:%M:%S" format.
+                - "status" (str): Segment status (e.g., operating status).
+                - "duration_h" (float): Segment duration in hours.
+                - "distance_km" (float): Segment distance in kilometers.
+                - "stop_id" (optional): Stop identifier or None if not applicable.
+        """
         start_time = datetime.strptime(seq["start_time"], "%H:%M:%S")
         end_time = datetime.strptime(seq["end_time"], "%H:%M:%S")
         if end_time < start_time:
@@ -244,7 +549,12 @@ class ChargingSimulator:
         return segments
 
     def _apply_charging_strategies(self, travel_sequence, charging_strategy, **kwargs):
-        """Applies multiple charging strategies and returns charging data."""
+        """
+        Apply multiple charging strategies to a vehicle travel sequence.
+
+        Returns:
+            dict: Charging result including success flag, energy balance, and battery metrics.
+        """
         total_need = sum(event["distance_km"] * self.energy_consumption_kWh_per_km for event in travel_sequence) + (self.security_driving_distance_km * self.energy_consumption_kWh_per_km)
         remaining = total_need
         charging_events = []
@@ -329,7 +639,7 @@ class ChargingSimulator:
         - "depot_night": Charges either at the end or beginning of the day (or both), based on depot availability.
 
         Returns:
-            List[Dict] of charging events with timing, energy amount, and location metadata.
+            list[Dict] of charging events with timing, energy amount, and location metadata.
         """
         charging_events = []
         remaining_need = charging_need_kWh  # How much energy still needs to be charged
@@ -504,17 +814,15 @@ class ChargingSimulator:
         Aggregates individual vehicle charging sessions into summarized charging intervals per stop.
         Each interval captures the total power, energy used, and number of vehicles charging concurrently.
 
-        Returns
-        -------
-        pd.DataFrame
-            One row per stop_id with:
-            - stop_id: str
-            - location: str
-            - charging_sequence: List[Dict] with:
-                - 'start_time', 'end_time', 'power', 'energy_kWh', 'vehicle_count'
-            - total_energy_kWh: float
-            - peak_power_kW: float
-            - max_vehicles: int
+        Returns:
+            pd.DataFrame: One row per stop_id with:
+                - stop_id: str
+                - location: str
+                - charging_sequence: List[Dict] with:
+                    - 'start_time', 'end_time', 'power', 'energy_kWh', 'vehicle_count'
+                - total_energy_kWh: float
+                - peak_power_kW: float
+                - max_vehicles: int
         """
         stops = self.fleet_sim.gtfs_manager.stops
 
@@ -689,160 +997,3 @@ class ChargingSimulator:
         start_capacity = -min_battery_level
 
         return required_capacity, start_capacity
-
-    # Charging load curve
-
-    def compute_charging_load_curve(self, time_step_s: int) -> pd.DataFrame:
-        """
-        Compute aggregated charging load curves by location from vehicle charging sequences.
-
-        Parameters:
-        - time_step_s: int, the resolution of the output time series in seconds
-
-        Returns:
-        - pd.DataFrame: charging load with columns:
-            - 'time_h': time elapsed from midnight in hours
-            - One column per location: aggregated power [kW] at each time step
-          Index is datetime.time (HH:MM:SS)
-        """
-        print("INFO \t Computing the charging load curve... ")
-
-        # 1) Flatten all charging sessions
-        all_sessions = []
-        for _, row in self.charging_schedule_pervehicle.iterrows():
-            all_sessions.extend(row['charging_sequence'])
-        sessions = pd.DataFrame(all_sessions)
-
-        # 2) Convert HH:MM:SS → seconds since midnight
-        def to_sec(hms: str) -> int:
-            h, m, s = map(int, hms.split(':'))
-            return h * 3600 + m * 60 + s
-
-        sessions['start_sec'] = sessions['start_time'].map(to_sec)
-        sessions['end_sec']   = sessions['end_time'].  map(to_sec)
-
-        # 2a) Split sessions that cross midnight
-        over_midnight = sessions['end_sec'] < sessions['start_sec']
-        if over_midnight.any():
-            wrap = sessions[over_midnight].copy()
-            # first part: start → midnight
-            wrap['end_sec'] = 86400
-            # second part: midnight → original end
-            wrap2 = wrap.copy()
-            wrap2['start_sec'] = 0
-            wrap2['end_sec']   = sessions.loc[over_midnight, 'end_sec'].values + 86400 - wrap.loc[over_midnight, 'start_sec'].values
-            sessions.loc[over_midnight, 'end_sec'] = 86400
-            sessions = pd.concat([sessions, wrap2], ignore_index=True)
-
-        # 3) Prepare time axis and predefined location types
-        full_day_sec = np.arange(0, 86400, time_step_s)
-        n_steps = full_day_sec.shape[0]
-        predefined_locations = ['depot', 'stop', 'terminal']
-        loc_to_col = {loc: i for i, loc in enumerate(predefined_locations)}
-
-        # 4) Build empty load matrix (steps × locations)
-        load_matrix = np.zeros((n_steps, len(predefined_locations)), dtype=float)
-
-        # 5) Accumulate each session’s power by slicing
-        for _, sess in sessions.iterrows():
-            start_idx = np.searchsorted(full_day_sec, sess['start_sec'],  side='left')
-            end_idx   = np.searchsorted(full_day_sec, sess['end_sec'],    side='left')
-            col_idx   = loc_to_col[sess['location']]
-            load_matrix[start_idx:end_idx, col_idx] += sess['power']
-
-        # 6) Build the DataFrame
-        #    - index as datetime.time
-        #    - insert time_h
-        times = [(datetime(1900,1,1) + timedelta(seconds=int(s))).time()
-                 for s in full_day_sec]
-        df = pd.DataFrame(load_matrix, index=times, columns=predefined_locations)
-        df.index.name = 'time'
-        df.insert(0, 'time_h', full_day_sec / 3600.0)
-
-        return df
-
-    # Visualization
-
-    def generate_charging_map(self, stop_charging_schedule, filepath):
-        """
-        Generates a folium map with both detailed colormapped markers and
-        heatmap aggregation for each key metric.
-        """        
-        df = stop_charging_schedule
-
-        valid = df['coordinates'].apply(lambda x: x != (None, None))
-        df_valid = df[valid]
-
-        if df_valid.empty:
-            print(f"ALERT \t No valid stop coordinates found. The stop map will be empty.")
-            center = [0, 0]
-        else:
-            avg_lat = df_valid['coordinates'].apply(lambda x: x[0]).mean()
-            avg_lon = df_valid['coordinates'].apply(lambda x: x[1]).mean()
-            center = [avg_lat, avg_lon]
-
-        m = folium.Map(location=center, zoom_start=12)
-
-        # Define the properties to plot
-        layers_info = {
-            "Energy Charged (kWh)": ("total_energy_kWh", cm.linear.YlOrRd_09),
-            "Peak Power (kW)": ("peak_power_kW", cm.linear.PuBu_09),
-            "Max Vehicles": ("max_vehicles", cm.linear.YlGnBu_09)
-        }
-
-        for name, (col, colormap) in layers_info.items():
-            # Color marker layer
-            fg_markers = folium.FeatureGroup(name=f"{name} (Details)")
-            values = df_valid[col].dropna()
-
-            # Crée une nouvelle instance de la palette à chaque fois
-            raw_colormap = colormap  # sauvegarde le modèle
-            vmin, vmax = values.min(), values.max()
-            if pd.isna(vmin) or pd.isna(vmax):
-                print(f"ALERT \t No data for {name}")
-                continue
-
-            # Crée une nouvelle colormap propre
-            colormap = raw_colormap.__class__(raw_colormap.colors).scale(vmin, vmax)
-            colormap.caption = name
-
-            for _, row in df_valid.iterrows():
-                val = row[col]
-                if pd.notnull(val):
-                    color = colormap(val)
-                    lat, lon = row['coordinates']
-                    folium.CircleMarker(
-                        location=[lat, lon],
-                        radius=8,
-                        color=color,
-                        fill=True,
-                        fill_opacity=0.7,
-                        weight=0.5,
-                        popup=folium.Popup(
-                            f"Stop ID: {row['stop_id']}<br>"
-                            f"Location: {row['location']}<br>"
-                            f"{name}: {val:.2f}", max_width=300
-                        )
-                    ).add_to(fg_markers)
-
-            fg_markers.add_to(m)
-            colormap.add_to(m)
-
-            # Heatmap layer
-            heat_data = [
-                [row['coordinates'][0], row['coordinates'][1], row[col]]
-                for _, row in df_valid.iterrows()
-                if pd.notnull(row[col])
-            ]
-            if heat_data:
-                HeatMap(
-                    heat_data,
-                    name=f"{name} (Heatmap)",
-                    min_opacity=0.4,
-                    max_opacity=0.8,
-                    radius=25,
-                    blur=15,
-                ).add_to(m)
-
-        folium.LayerControl(collapsed=False).add_to(m)
-        m.save(filepath)
