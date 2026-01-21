@@ -73,6 +73,10 @@ nav:
 
       - Ex-post Analysis:
           - PVSimulator: api/ex-post-analysis/pvsimulator.md
+          - AirPollutionExposure: api/ex-post-analysis/airpollution.md
+          - CO2Savings: api/ex-post-analysis/co2savings.md
+          - EVPVSynergies: api/ex-post-analysis/evpvsynergies.md
+          - CostSavings: api/ex-post-analysis/costsavings.md
 
       - Internal API:
           - TripSimulator: api/internal-api/trip-simulator.md

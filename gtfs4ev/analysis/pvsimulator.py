@@ -9,32 +9,87 @@ from datetime import datetime
 
 class PVSimulator:
     """
-    PVSimulator: Simulates hourly PV production for a given location and year.
+    **PV production simulator** based on `pvlib` for a single location
+    and a full reference year.
 
-    Steps / Simulation logic:
-    1. Initialize environment, PV module, and installation parameters.
-    2. Create a `pvlib.Location` object based on latitude, longitude, and timezone.
-    3. Fetch hourly weather data with plane-of-array (POA) irradiance from PVGIS with optimized tilt for certain installation types.
-    4. Create a `pvlib.PVSystem` object using module parameters, inverter parameters, and mounting/temperature settings.
-    5. Compute PV production using `pvlib.modelchain.ModelChain` with losses
-    6. Calculate KPIs: Performance ratio, capacity factor, energy yield, and module temperature.
-    7. Store results in a pandas DataFrame for further analysis.
+    The `PVSimulator` provides an end-to-end workflow to simulate **hourly
+    photovoltaic electricity production** over a year, using PVGIS
+    irradiance data and `pvlib`'s physical models.
+
+    The simulator encapsulates:
+
+    - **Geographical and temporal context** (location, timezone, reference year)
+    - **PV module characteristics** (efficiency, temperature coefficient)
+    - **Installation configuration** (mounting type, system losses)
+    - **Weather data acquisition** with plane-of-array (POA) irradiance
+    - **PV system modeling** via `pvlib.modelchain.ModelChain`
+    - **Post-processing and KPI computation**
+
+    Results are returned as a pandas DataFrame with hourly resolution and
+    include both energy production and other key performance indicators.
+
+    Notes:
+        - The simulation is normalized per square meter of PV module area.
+        - Weather data are sourced from PVGIS (SARAH3 database).
+        - No degradation, curtailment, or grid constraints are modeled.
+        - Inverter behavior is assumed ideal; system losses are applied ex-post.
+        - The simulator is designed for **annual simulations** (single year).
+
+    Attributes:
+        environment (dict): Environmental configuration including latitude, longitude, and simulation year.
+        installation (dict): Installation parameters such as mounting type, tilt/azimuth (derived), and system losses.
+        pv_module (dict): PV module parameters including efficiency and temperature coefficient.
+        location (pvlib.location.Location): pvlib Location object with timezone.
+        weather_data (pd.DataFrame): Hourly POA weather data used for simulation.
+        pv_system (pvlib.pvsystem.PVSystem): Configured PV system model.
+        results (pd.DataFrame): Hourly simulation outputs and KPIs (computed after calling `compute_pv_production`).
+
+    Presets:
+        The simulator supports two predefined installation presets, which
+        control mounting assumptions and irradiance processing:
+
+        1. **freestanding_opt_tilt**: Ground-mounted or freestanding PV system. Surface tilt is optimized by PVGIS for maximum annual yield. Temperature model: freestanding (well-ventilated).
+
+        2. **flat_roof**: Fixed horizontal installation (tilt = 0°, azimuth = 180°). No tilt optimization is applied. Temperature model: insulated (reduced ventilation).
+
+    Examples:
+        >>> env = {"latitude": 48.85, "longitude": 2.35, "year": 2023}
+        >>> module = {"efficiency": 0.20, "temperature_coefficient": -0.004}
+        >>> install = {"type": "freestanding_opt_tilt", "system_losses": 0.14}
+        >>> sim = PVSimulator(env, module, install)
+        >>> sim.compute_pv_production()
+        >>> df = sim.results
     """
+
+    ## ============================================================
+    ## Constructor
+    ## ============================================================
+
     def __init__(self, environment: dict, pv_module: dict, installation: dict):
         """
-        Initializes the PVSimulator with validated environmental data, PV module parameters, and installation settings.
+        Initialize a PVSimulator with environmental context, PV module
+        characteristics, and installation settings.
+
+        This constructor:
+        - Validates all input dictionaries
+        - Determines the local timezone from coordinates
+        - Fetches hourly POA irradiance data from PVGIS
+        - Instantiates a `pvlib.PVSystem` object ready for simulation
 
         Args:
-            environment (dict): A dictionary containing environmental parameters with the following keys:
-                - latitude (float): Latitude of the location (must be between -90 and 90).
-                - longitude (float): Longitude of the location (must be between -180 and 180).
-                - year (int): Year for the simulation.
-            pv_module (dict): A dictionary containing PV module parameters with the following keys:
-                - efficiency (float): Efficiency of the PV module (must be a positive decimal less than or equal to 1).
-                - temperature_coefficient (float): Temperature coefficient of the module.
-            installation (dict): A dictionary containing installation parameters with the following keys:
-                - type (str): Type of installation (e.g., 'flat_roof').
-                - system_losses (float): System losses as a decimal (must be between 0 and 1).
+            environment (dict): Environmental parameters with keys:
+                - latitude (float): Site latitude in degrees.
+                - longitude (float): Site longitude in degrees.
+                - year (int): Reference year for the simulation.
+            pv_module (dict): PV module parameters with keys:
+                - efficiency (float): Module efficiency (0 < η ≤ 1).
+                - temperature_coefficient (float): Power temperature coefficient (1/°C).
+            installation (dict): Installation parameters with keys:
+                - type (str): Installation type (`"freestanding_opt_tilt"` or `"flat_roof"`).
+                - system_losses (float): Aggregate system losses (0–1).
+
+        Raises:
+            ValueError: If any input dictionary is invalid or contains out-of-range values.
         """
         print("=========================================")
         print(f"INFO \t Creation of a PVSimulator object.")
@@ -55,10 +110,21 @@ class PVSimulator:
         self.weather_data = self._fetch_weather_data()
         self.pv_system = self._create_pv_system()
 
-    # Properties and Setters with validation
+    ## ============================================================
+    ## Attributes 
+    ## ============================================================
 
     @property
     def environment(self) -> dict:
+        """
+        Environmental configuration for the simulation.
+
+        Contains geographical coordinates and the reference year.
+        Validation ensures physically meaningful ranges.
+
+        Returns:
+            dict: Environment dictionary.
+        """
         return self._environment
 
     @environment.setter
@@ -81,6 +147,15 @@ class PVSimulator:
 
     @property
     def installation(self) -> dict:
+        """
+        PV installation configuration.
+
+        Includes mounting type, system losses, and derived geometric
+        parameters (tilt and azimuth).
+
+        Returns:
+            dict: Installation dictionary.
+        """
         return self._installation
 
     @installation.setter
@@ -100,6 +175,15 @@ class PVSimulator:
 
     @property
     def pv_module(self) -> dict:
+        """
+        Photovoltaic module parameters.
+
+        Defines conversion efficiency and temperature sensitivity
+        used in PVWatts-style power modeling.
+
+        Returns:
+            dict: PV module dictionary.
+        """
         return self._pv_module
 
     @pv_module.setter
@@ -120,19 +204,32 @@ class PVSimulator:
     # Results
     @property
     def results(self) -> pd.DataFrame:
+        """
+        Simulation results and KPIs.
+
+        Available after calling `compute_pv_production`.
+
+        Returns:
+            pd.DataFrame: Hourly PV production and performance indicators.
+        """
         return self._results
 
     @results.setter
     def results(self, results_df: pd.DataFrame):
         self._results = results_df
 
-    # Location, Weather, PV System 
+    ## ============================================================
+    ## Internal Model Construction
+    ## ============================================================
 
     def _create_location(self) -> location.Location:
-        """Creates a location object based on the environment settings.
+        """
+        Create a `pvlib.Location` object from environmental parameters.
+
+        The timezone is automatically inferred from latitude and longitude.
 
         Returns:
-            location.Location: A location object containing latitude, longitude, and timezone information.
+            pvlib.location.Location: Configured location object.
         """
         print(f"INFO \t Creating location object...")
 
@@ -148,10 +245,17 @@ class PVSimulator:
         )
 
     def _fetch_weather_data(self) -> pd.DataFrame:
-        """Fetches hourly weather data with POA irradiance from PVGIS for the specified year.
+        """
+        Retrieve hourly plane-of-array (POA) irradiance data from PVGIS.
+
+        The method:
+        - Requests SARAH3 satellite data from PVGIS
+        - Applies optimal tilt when requested
+        - Converts timestamps to local timezone
+        - Reorders data to match the reference year exactly
 
         Returns:
-            pd.DataFrame: A DataFrame containing the weather data with POA irradiance.
+            pd.DataFrame: Hourly POA weather data indexed by local datetime.
         """
         print(f"INFO \t Fetching hourly weather data with POA irradiance from PV GIS for the year {self.environment['year']} (Installation type: {self.installation['type']})...")
 
@@ -233,7 +337,18 @@ class PVSimulator:
         return weather_data_poa
 
     def _create_pv_system(self) -> pvsystem.PVSystem:
-        """Create a PVSystem fully handled by pvlib.ModelChain."""
+        """
+        Create a `pvlib.PVSystem` instance.
+
+        The system is configured for:
+        - Per-m² normalized power output
+        - Martin–Ruiz IAM model
+        - PVSyst temperature model
+        - Ideal inverter (losses applied separately)
+
+        Returns:
+            pvlib.pvsystem.PVSystem: Configured PV system.
+        """
 
         print("INFO \t Creating a pvlib PVSystem object...")
 
@@ -267,14 +382,27 @@ class PVSimulator:
 
         return system
 
-    # Compute PV Production 
+    ## ============================================================
+    ## Simulation Execution
+    ## ============================================================
 
     def compute_pv_production(self) -> pd.DataFrame:
-        """Compute the PV production and main KPIs using POA weather data.
+        """
+        Compute hourly PV electricity production and key performance indicators.
+
+        The simulation uses `pvlib.modelchain.ModelChain` driven by
+        plane-of-array irradiance. System losses are applied after
+        physical modeling.
+
+        Computed outputs include:
+        - AC PV production (W/m²)
+        - Performance ratio
+        - Capacity factor
+        - Module operating temperature
+        - POA irradiance
 
         Returns:
-            pd.DataFrame: A DataFrame containing PV production, performance ratio, capacity factor, 
-                          operating temperature, and POA irradiance.
+            pd.DataFrame: Hourly PV production and KPI time series.
         """
         print(f"INFO \t Computing the hourly PV production...")
 
@@ -314,17 +442,20 @@ class PVSimulator:
 
         self._results = results_df
 
-    # Helpers
+    ## ============================================================
+    ## Helpers
+    ## ============================================================
 
     def get_timezone(self, lat: float, lon: float) -> str:
-        """Get timezone string based on latitude and longitude.
+        """
+        Get the timezone string from geographic coordinates.
 
         Args:
-            lat (float): Latitude of the location.
-            lon (float): Longitude of the location.
+            lat (float): Latitude in degrees.
+            lon (float): Longitude in degrees.
 
         Returns:
-            str: The timezone string if found, otherwise None.
+            str: Timezone identifier (e.g., "Europe/Paris"), or None if not found.
         """
         tf = TimezoneFinder()  # Initialize TimezoneFinder
 
