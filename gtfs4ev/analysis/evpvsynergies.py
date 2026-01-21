@@ -17,25 +17,55 @@ warnings.filterwarnings("ignore", category=IntegrationWarning)
 
 class EVPVSynergies:
     """
-    A class to analyze energy synergies between electric vehicle (EV) charging demand and photovoltaic (PV) production. 
-    The main metrics calculated include energy coverage, self-sufficiency, self-consumption, and excess PV ratios, 
-    as well as the Spearman correlation between EV and PV profiles over specific days.
+    **Electric Vehicle – Photovoltaic (EV–PV) energy synergy analyzer**.
 
-    This class requires:
+    The `EVPVSynergies` class quantifies the temporal and energetic interaction
+    between electric vehicle (EV) charging demand and photovoltaic (PV) electricity
+    production. It evaluates how effectively on-site or nearby PV generation
+    can support EV charging loads. *
 
-    - A PVSimulator object, which holds the capacity factor time series data for PV production.
-    - A ChargingSimulator object, which stores EV charging demand profiles.
-    - The installed PV capacity (in megawatts, MW) as a float value.
+    The class computes daily energy and synergy indicators including:
+        - Energy coverage ratio
+        - Self-sufficiency ratio
+        - Self-consumption ratio
+        - Excess PV production ratio
+        - Spearman rank correlation between PV and EV profiles
+
+    All metrics are evaluated on a **24-hour basis** and can be aggregated
+    across a user-defined date range.
+
+    Required inputs:
+        - A `PVSimulator` instance containing PV capacity factor time series
+        - An EV charging demand load curve
+        - Installed PV capacity (MW)
+
+    Attributes:
+        pv_capacity_MW (float): Installed photovoltaic capacity (MW).
+        pv_capacity_factor (dict): Daily interpolation functions of PV capacity factors.
+        ev_charging_demand_MW (callable): Interpolated EV charging demand profile (MW).
+
+    Notes:
+        - All integrations are performed over a 24-hour horizon (0–24 h)
+        - Time resolution is defined by interpolation and integration settings
+        - Results represent **theoretical energy synergies**, not operational dispatch
     """
+
+    ## ============================================================
+    ## Constructor
+    ## ============================================================
 
     def __init__(self, pv: PVSimulator, load_curve: pd.DataFrame, pv_capacity_MW: float):
         """
-        Initialize the EVPVSynergies object.
-        
+        Initialize the EV–PV synergy analyzer.
+
         Args:
-            pv: Object containing PV production calculations.
-            ev: Object containing EV charging demand calculations.
-            pv_capacity_MW: PV capacity in megawatts (MW).
+            pv (PVSimulator): Object containing PV capacity factor results.
+            load_curve (pd.DataFrame): EV charging demand profile containing:
+                - time_h
+                - depot
+                - stop
+                - terminal
+            pv_capacity_MW (float): Installed PV capacity in megawatts (MW).
         """
         print("=========================================")
         print(f"INFO \t Creation of a EVPVSynergies object.")
@@ -48,9 +78,18 @@ class EVPVSynergies:
 
         print(f"INFO \t Successful initialization of input parameters.")
 
+    ## ============================================================
+    ## Attributes
+    ## ============================================================
+
     @property
     def ev_charging_demand_MW(self) -> interp1d:
-        """interp1d: Interpolation function for EV charging demand."""
+        """
+        Interpolated EV charging demand profile.
+
+        Returns:
+            interp1d: Continuous EV charging demand function (MW vs time).
+        """
         return self._ev_charging_demand_MW
 
     @ev_charging_demand_MW.setter
@@ -65,7 +104,13 @@ class EVPVSynergies:
 
     @property
     def pv_capacity_factor(self) -> dict:
-        """ dict: Dictionary of interpolation functions for PV capacity factors by day."""
+        """
+        Daily PV capacity factor interpolation functions.
+
+        Returns:
+            dict: Dictionary mapping 'MM-DD' to interpolation functions
+                  returning PV capacity factors as a function of hour.
+        """
         return self._pv_capacity_factor
 
     @pv_capacity_factor.setter
@@ -104,74 +149,93 @@ class EVPVSynergies:
 
     @property
     def pv_capacity_MW(self) -> float:
-        """ float: PV capacity in megawatts (MW)."""
+        """
+        Installed PV capacity.
+
+        Returns:
+            float: PV capacity in megawatts (MW).
+        """
         return self._pv_capacity_MW
 
     @pv_capacity_MW.setter
     def pv_capacity_MW(self, pv_capacity_MW: float):
         self._pv_capacity_MW = pv_capacity_MW
         
-    # PV Production
+    ## ============================================================
+    ## PV Production
+    ## ============================================================
 
     def pv_power_MW(self, day: str = '01-01') -> callable:
-        """Return the PV power in megawatts for a given day as a function of time.
+        """
+        PV power output function for a given day.
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate PV power for. Defaults to '01-01'.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
 
         Returns:
-            callable: A lambda function that calculates PV power (MW) at any given time.
+            callable: Function returning PV power output (MW) at time t.
         """
         return lambda x: self.pv_capacity_factor[day](x) * self.pv_capacity_MW
 
     def pv_production(self, day: str = '01-01') -> float:
-        """Calculate the total PV production for a given day by integrating over 24 hours.
+        """
+        Total daily PV electricity production.
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate PV production for. Defaults to '01-01'.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
 
         Returns:
-            float: Total PV production (MWh) for the specified day.
+            float: Daily PV energy production (MWh).
         """
         result, error = integrate.quad(self.pv_power_MW(day), 0, 24)
         return result
 
-    # EV Charging demand
+    ## ============================================================
+    ## EV Charging Demand
+    ## ============================================================
 
     def ev_demand(self) -> float:
-        """Calculate the total EV charging demand by integrating over 24 hours.
+        """
+        Total daily EV charging demand.
 
         Returns:
-            float: Total EV charging demand (MWh) for the day.
+            float: Daily EV electricity demand (MWh).
         """
         result, error = integrate.quad(self.ev_charging_demand_MW, 0, 24)
         return result
 
-    # EV-PV Synergies 
+    ## ============================================================
+    ## EV–PV Synergy Metrics
+    ## ============================================================
 
     def energy_coverage_ratio(self, day: str = '01-01') -> float:
-        """Calculate the ratio of PV production to EV charging demand for a given day.
+        """
+        Energy coverage ratio.
+
+        Defined as:
+            PV production / EV charging demand
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate the energy coverage ratio for. Defaults to '01-01'.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
 
         Returns:
-            float: Energy coverage ratio for the specified day.
+            float: Energy coverage ratio.
         """
         return self.pv_production(day) / self.ev_demand()
 
     def self_sufficiency_ratio(self, day: str = '01-01', coincident_power: float = None) -> float:
-        """Calculate the self-sufficiency ratio for a given day.
+        """
+        Self-sufficiency ratio.
 
-        The self-sufficiency ratio is the ratio of coincident power (minimum of PV and EV demand) 
-        to EV demand.
+        Defined as:
+            Coincident PV–EV energy / EV charging demand
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate the self-sufficiency ratio for. Defaults to '01-01'.
-            coincident_power (float): The coincident power if already calculated. Default is None.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
+            coincident_power (float, optional): Precomputed coincident energy (MWh).
 
         Returns:
-            float: Self-sufficiency ratio for the specified day.
+            float: Self-sufficiency ratio.
         """
         if coincident_power is None:
             coincident_power = lambda x: min(self.pv_power_MW(day)(x), self.ev_charging_demand_MW(x))
@@ -181,16 +245,18 @@ class EVPVSynergies:
         return coincident_power / self.ev_demand()
 
     def self_consumption_ratio(self, day: str = '01-01', coincident_power: float = None) -> float:
-        """Calculate the self-consumption ratio for a given day.
+        """
+        Self-consumption ratio.
 
-        The self-consumption ratio is the ratio of coincident power to total PV production.
+        Defined as:
+            Coincident PV–EV energy / PV production
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate the self-consumption ratio for. Defaults to '01-01'.
-            coincident_power (float): The coincident power if already calculated. Default is None.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
+            coincident_power (float, optional): Precomputed coincident energy (MWh).
 
         Returns:
-            float: Self-consumption ratio for the specified day.
+            float: Self-consumption ratio.
         """
         if coincident_power is None:
             coincident_power = lambda x: min(self.pv_power_MW(day)(x), self.ev_charging_demand_MW(x))
@@ -200,16 +266,18 @@ class EVPVSynergies:
         return coincident_power / self.pv_production(day)
 
     def excess_pv_ratio(self, day: str = '01-01', coincident_power: float = None) -> float:
-        """Calculate the excess PV ratio for a given day.
+        """
+        Excess PV production ratio.
 
-        The excess PV ratio is the fraction of PV production that exceeds the EV demand.
+        Defined as:
+            (PV production − coincident energy) / PV production
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate the excess PV ratio for. Defaults to '01-01'.
-            coincident_power (float): The coincident power if already calculated. Default is None.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
+            coincident_power (float, optional): Precomputed coincident energy (MWh).
 
         Returns:
-            float: Excess PV ratio for the specified day.
+            float: Excess PV ratio.
         """
         if coincident_power is None:
             coincident_power = lambda x: min(self.pv_power_MW(day)(x), self.ev_charging_demand_MW(x))
@@ -221,14 +289,15 @@ class EVPVSynergies:
         return (pv_prod - coincident_power) / pv_prod
 
     def spearman_correlation(self, day: str = '01-01', n_points: int = 100) -> tuple:
-        """Calculate the Spearman correlation between PV production and EV charging demand.
+        """
+        Spearman rank correlation between PV production and EV demand profiles.
 
         Args:
-            day (str): The day in 'MM-DD' format to calculate the Spearman correlation for. Defaults to '01-01'.
-            n_points (int): The number of points to sample across the 24-hour period. Defaults to 100.
+            day (str, optional): Day in 'MM-DD' format. Defaults to '01-01'.
+            n_points (int, optional): Number of temporal samples. Defaults to 100.
 
         Returns:
-            tuple: Spearman correlation coefficient and p-value.
+            tuple: (Spearman correlation coefficient, p-value).
         """
         # Define the range and resolution
         t_values = np.linspace(0, 24, n_points) 
@@ -241,17 +310,30 @@ class EVPVSynergies:
 
         return spearman_coef, p_value
 
+    ## ============================================================
+    ## Aggregated Daily Analysis
+    ## ============================================================
+
     def daily_metrics(self, start_date: str, end_date: str, n_points: int = 100) -> pd.DataFrame:
-        """Compute all energy and synergy metrics over a given period.
+        """
+        Compute all EV–PV synergy metrics over a date range.
+
+        Metrics computed for each day include:
+            - PV production
+            - EV demand
+            - Energy coverage ratio
+            - Self-sufficiency ratio
+            - Self-consumption ratio
+            - Excess PV ratio
+            - Spearman correlation coefficient and p-value
 
         Args:
             start_date (str): Start date in 'MM-DD' format.
             end_date (str): End date in 'MM-DD' format.
-            n_points (int): The number of points to sample for each day. Defaults to 100.
-            recompute_probability (float): Probability (between 0 and 1) of recomputing EV demand for each day.
+            n_points (int, optional): Temporal sampling resolution. Defaults to 100.
 
         Returns:
-            pd.DataFrame: DataFrame containing all metrics for each day within the specified range.
+            pd.DataFrame: Daily EV–PV synergy metrics.
         """
         print(f"INFO \t Computing all metrics over a given period. This might take some time...")
 
