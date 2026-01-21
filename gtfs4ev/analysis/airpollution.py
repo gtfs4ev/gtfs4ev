@@ -1,29 +1,5 @@
 # coding: utf-8
 
-"""
-AirPollutionExposure
---------------------
-
-A class to estimate population exposure to traffic-related air pollution (TRAP)
-using fleet operation data, travel sequences, population raster, and spatial decay.
-
-Workflow:
-    1. Compute a local emission index raster from VKM and road geometries
-    2. Apply distance-weighted decay to generate an exposure raster
-    3. Compute population-weighted exposure and normalize
-    4. Export all raster outputs
-
-Example:
-    calculator = AirPollutionExposure(
-        input_fleet_operation="fleet_operation.csv",
-        input_travel_sequences="travel_sequences.csv",
-        population_raster="population.tif",
-        buffer_distance=300,
-        decay_rate=0.0064
-    )
-    calculator.compute_exposure()
-"""
-
 import os
 import pandas as pd
 import numpy as np
@@ -35,6 +11,63 @@ from pyproj import Geod
 
 
 class AirPollutionExposure:
+    """
+    **Traffic-related air pollution (TRAP) exposure assessment**
+    based on fleet operation outputs and spatial population data.
+
+    The `AirPollutionExposure` class estimates **relative population exposure**
+    to traffic-related emissions by combining:
+    - Fleet-level vehicle kilometers traveled (VKT / VKM)
+    - Spatialized road geometries from travel sequences
+    - A population raster
+    - Distance-based exponential decay of pollutant concentration
+
+    The exposure assessment follows a raster-based workflow and produces
+    intermediate and final spatial indicators suitable for GIS analysis.
+
+    Workflow:
+        1. **Local emission index**: Spatial allocation of vehicle kilometers to raster cells based on road geometry intersection.
+        2. **Distance-weighted exposure**:Application of an exponential decay kernel within a given buffer distance.
+        3. **Population-weighted exposure**: Combination with population raster and normalization.
+        4. **Raster export**: All outputs are written as GeoTIFF files.
+
+    Notes:
+        - The model estimates **relative exposure**, not pollutant concentration
+          (e.g. NO₂, PM₂.₅).
+        - Emissions are assumed proportional to vehicle kilometers traveled.
+        - No background pollution or meteorology is included.
+        - The decay function is isotropic and distance-based.
+        - All rasters must share the same spatial resolution and CRS.
+
+    Attributes:
+        input_fleet_operation (str): Path to CSV file containing fleet operation results (trip-level VKM).
+        input_travel_sequences (str): Path to CSV file containing travel sequence geometries (WKT LineStrings).
+        population_raster (str): Path to population raster (GeoTIFF).
+        buffer_distance (float): Maximum influence distance in meters.
+        decay_rate (float): Exponential decay rate (per meter).
+        output_local_emission_index (str): Path to output local emission raster.
+        output_distance_weighted_index (str): Path to output distance-weighted raster.
+        output_population_exposure (str): Path to output population exposure raster.
+
+    Examples:
+        >>> calculator = AirPollutionExposure(
+        ...     input_fleet_operation="fleet_operation.csv",
+        ...     input_travel_sequences="travel_sequences.csv",
+        ...     population_raster="population.tif",
+        ...     buffer_distance=300,
+        ...     decay_rate=0.0064
+        ... )
+        >>> calculator.compute_exposure(
+        ...     "local_emission.tif",
+        ...     "distance_weighted.tif",
+        ...     "population_exposure.tif"
+        ... )
+    """
+
+    ## ============================================================
+    ## Constructor
+    ## ============================================================
+
     def __init__(
         self,
         input_fleet_operation: str,
@@ -44,14 +77,21 @@ class AirPollutionExposure:
         decay_rate: float = 0.0064,
     ):
         """
-        Initialize the AirPollutionExposure calculator.
+        Initialize the air pollution exposure assessment engine.
+
+        This constructor registers all required inputs and configuration
+        parameters. No computation is performed at initialization.
 
         Args:
-            input_fleet_operation (str): CSV with fleet operation results
-            input_travel_sequences (str): CSV with travel sequences geometries
-            population_raster (str): Population raster (.tif)
-            buffer_distance (float): Maximum influence distance (m)
-            decay_rate (float): Exponential decay rate (per meter)
+            input_fleet_operation (str): Path to CSV file containing fleet
+                operation outputs, including total distance traveled per trip.
+            input_travel_sequences (str): Path to CSV file containing
+                travel sequences with WKT geometries.
+            population_raster (str): Path to population raster (GeoTIFF).
+            buffer_distance (float, optional): Maximum distance of pollutant
+                influence in meters. Defaults to 300 m.
+            decay_rate (float, optional): Exponential decay rate of exposure
+                per meter. Defaults to 0.0064.
         """
         self.input_fleet_operation = input_fleet_operation
         self.input_travel_sequences = input_travel_sequences
@@ -72,9 +112,25 @@ class AirPollutionExposure:
         output_local_emission_index: str,
         output_distance_weighted_index: str,
         output_population_exposure: str,
-    ):
+    ) -> None:
         """
         Run the full air pollution exposure assessment pipeline.
+
+        This method executes all processing steps sequentially:
+        - VKM and geometry preparation
+        - Local emission index computation
+        - Distance-weighted exposure convolution
+        - Population-weighted exposure normalization
+
+        All intermediate and final results are written to disk.
+
+        Args:
+            output_local_emission_index (str): Output GeoTIFF path for the
+                local emission index raster.
+            output_distance_weighted_index (str): Output GeoTIFF path for the
+                distance-weighted exposure raster.
+            output_population_exposure (str): Output GeoTIFF path for the
+                normalized population exposure raster.
         """
         self.output_local_emission_index = output_local_emission_index
         self.output_distance_weighted_index = output_distance_weighted_index
@@ -98,6 +154,19 @@ class AirPollutionExposure:
     # ------------------------------------------------------------------
 
     def _prepare_vkm_and_geometry(self):
+        """
+        Prepare vehicle kilometers traveled (VKM) and road geometries.
+
+        This method:
+        - Aggregates trip-level distances from fleet operation data
+        - Reconstructs continuous LineStrings from travel sequence points
+        - Aligns VKM values with corresponding geometries
+
+        Returns:
+            tuple:
+                - vkm_list (list[float]): Total distance traveled per trip (km).
+                - linestrings (list[LineString]): Reconstructed trip geometries.
+        """
         df_fleet = pd.read_csv(self.input_fleet_operation)
         df_seq = pd.read_csv(self.input_travel_sequences)
 
@@ -128,6 +197,19 @@ class AirPollutionExposure:
     # ------------------------------------------------------------------
 
     def _local_emission_index(self, vkm_list, linestrings, ref_raster, output_raster, C=1):
+        """
+        Compute a rasterized local emission index.
+
+        Each raster cell receives a share of vehicle kilometers traveled
+        proportional to the length of road segments intersecting the cell.
+
+        Args:
+            vkm_list (list[float]): Vehicle kilometers traveled per trip.
+            linestrings (list[LineString]): Trip geometries.
+            ref_raster (str): Reference raster defining grid and CRS.
+            output_raster (str): Output GeoTIFF path.
+            C (float, optional): Scaling constant. Defaults to 1.
+        """
         with rasterio.open(ref_raster) as src:
             raster = src.read(1).astype(float)
             transform = src.transform
@@ -180,6 +262,16 @@ class AirPollutionExposure:
     # ------------------------------------------------------------------
 
     def _distance_weighted_exposure(self):
+        """
+        Apply distance-based exponential decay to the local emission index.
+
+        The method convolves the local emission raster with an isotropic
+        exponential decay kernel, limited to a circular buffer defined
+        by `buffer_distance`.
+
+        The result represents potential exposure intensity independent
+        of population.
+        """
         with rasterio.open(self.output_local_emission_index) as src:
             data = src.read(1).astype(float)
 
@@ -202,6 +294,13 @@ class AirPollutionExposure:
     # ------------------------------------------------------------------
 
     def _population_weighted_exposure(self):
+        """
+        Compute population-weighted exposure and normalize.
+
+        The distance-weighted exposure raster is multiplied by the
+        population raster and normalized by its maximum value to produce
+        a relative exposure index in the range [0, 1].
+        """
         with rasterio.open(self.population_raster) as pop_src:
             pop = pop_src.read(1)
             profile = pop_src.profile
@@ -225,7 +324,17 @@ class AirPollutionExposure:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _exponential_decay_kernel(size, decay_factor):
+    def _exponential_decay_kernel(size, decay_factor) -> np.ndarray:
+        """
+        Generate a 2D exponential decay kernel.
+
+        Args:
+            size (int): Kernel size (number of pixels per dimension).
+            decay_factor (float): Exponential decay factor per pixel.
+
+        Returns:
+            np.ndarray: Decay kernel.
+        """
         center = (size - 1) / 2
         kernel = np.zeros((size, size))
         for i in range(size):
@@ -236,7 +345,17 @@ class AirPollutionExposure:
         return kernel
 
     @staticmethod
-    def _mask_within_radius(size, radius):
+    def _mask_within_radius(size, radius) -> np.ndarray:
+        """
+        Create a circular mask to limit kernel influence.
+
+        Args:
+            size (int): Kernel size.
+            radius (float): Radius of influence in pixels.
+
+        Returns:
+            np.ndarray: Binary mask array.
+        """
         mask = np.zeros((size, size))
         c = size // 2
         for i in range(size):
