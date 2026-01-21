@@ -1,10 +1,10 @@
 from setuptools import setup
-from version import __version__
 
 setup(
     name="gtfs4ev",          
-    version=__version__,                  
-    description="A modelling tool to calculate electrification scenarios for public transport based on GTFS data",
+    version=0.1,                  
+    description="A Python framework for simulating electric bus operations and charging demand using GTFS data",
+    packages=["gtfs4ev"],
     long_description="README.md",
     long_description_content_type="text/markdown",
     author="Jérémy Dumoulin",
@@ -26,7 +26,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'gtfs4ev=gtfs4ev.gtfs4ev_cli:main',  
+            'gtfs4ev=gtfs4ev.cli.gtfs4ev_cli:main',  
         ],
     }    
 )

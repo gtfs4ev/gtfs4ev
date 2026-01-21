@@ -1,0 +1,119 @@
+site_name: GTFS4EV
+site_description: Python framework for simulating electric bus operations and charging demand using GTFS data 
+strict: false
+
+theme:
+  name: "material"
+  logo: img/logo.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep-orange
+      accent: pink
+      toggle:
+        icon: material/weather-sunny
+        name: "Switch to dark mode"
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue-grey
+      accent: pink
+      toggle:
+        icon: material/weather-night
+        name: "Switch to light mode"
+  features:
+    - announce.dismiss
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - navigation.indexes
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+  icon:
+    next: fontawesome/solid/angle-right
+    previous: fontawesome/solid/angle-left
+    repo: fontawesome/brands/github-alt
+    view: material/eye
+
+extra_css:
+  - extra.css
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css
+
+extra_javascript:
+  - katex.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js
+  - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js
+
+repo_url: https://github.com/gtfs4ev/gtfs4ev
+repo_name: gtfs4ev/gtfs4ev
+edit_uri: edit/main/docs/
+
+nav:
+  - Home: index.md
+
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Examples: getting-started/examples.md
+
+  - Methodology:
+      - Overview: methodology/overview.md
+      - Core Workflow: methodology/core-workflow.md
+      - Ex-post Analysis: methodology/ex-post-analysis.md
+
+  - API Reference:
+      - Package Structure: api/package-structure.md
+
+      - Core Classes:
+          - GTFSManager: api/core-classes/gtfs-manager.md
+          - FleetSimulator: api/core-classes/fleet-simulator.md
+          - ChargingSimulator: api/core-classes/charging-simulator.md
+
+      - Ex-post Analysis:
+          - PVSimulator: api/ex-post-analysis/pvsimulator.md
+          - AirPollutionExposure: api/ex-post-analysis/airpollution.md
+          - CO2Savings: api/ex-post-analysis/co2savings.md
+          - EVPVSynergies: api/ex-post-analysis/evpvsynergies.md
+          - CostSavings: api/ex-post-analysis/costsavings.md
+
+      - Internal API:
+          - TripSimulator: api/internal-api/trip-simulator.md
+
+  - Appendix:
+      - References: appendix/references.md
+      - Contributing: appendix/contributing.md
+      - Contact: appendix/contact.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: false
+            group_by_category: true
+            show_category_heading: true
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+      title: Page contents
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+      default_lang: "py"
+  - pymdownx.extra
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.magiclink
+  - pymdownx.snippets:
+      base_path: ["docs", "."]
+  - pymdownx.arithmatex:
+      generic: true
