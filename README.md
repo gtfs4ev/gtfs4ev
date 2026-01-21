@@ -37,11 +37,15 @@ Other **standout features**:
 * Spatial visualization of transport network and charging demand as HTML maps 
 * Dual usage: Use as a CLI or as a modular Python library for advanced analysis.
 
+## Documentation
+
+For detailed information about the model, its usage, and the API, please see the [documentation](https://gtfs4ev.github.io/gtfs4ev/). The documentation also contains step-by-step guides to the minimal working examples available in the `examples/` folder.
+
 ## Authors 
 
 `GTFS4EV` is initially developed by EPFL (Switzerland), within the Photovoltaics and Thin Film Electronics Laboratory (PV-Lab). 
 
-Main authors: Jeremy Dumoulin (jeremy.dumoulin[at]epfl.ch), Alejandro Pena-Bello, Noémie Jeannin, Nicolas Wyrsch
+Main authors at the initiative of GTFS4EV: Jeremy Dumoulin (jeremy.dumoulin[at]epfl.ch), Alejandro Pena-Bello, Noémie Jeannin, Nicolas Wyrsch
 
 ## Installation
 
@@ -112,9 +116,16 @@ charging.compute_charging_load_curve(time_step_s=60).to_csv("path/to/output/load
 
 > :bulb: We recommend starting by looking at the full documentation and examples to get familiar with the simulation workflow, inputs and outputs. The easiest way to access all necessary files is to download the full GitHub repository as a ZIP file, extract it and copy the contents of the example folder into the directory of your choice.
 
-## Documentation
+## Examples
 
-For detailed information about the model, its usage, and the API, please see the [documentation](https://gtfs4ev.github.io/gtfs4ev/). The documentation also contains step-by-step guides to the minimal working examples available in the `examples/` folder.
+Below are selected outputs derived from a case study of Lusaka’s minibus taxi fleet (detailed in this [report](docs/cases/GTFS4EV_Lusaka_report_open.pdf)). These examples illustrate typical analyses such as:
+
+ - Characterization of the existing minibus network
+ - Analysis of fleet operation
+ - Required battery capacities and number of charger in different charging scenarios
+ - Aggregated charging load in different charging scenarios
+
+![Example results](docs/img/example_results.png)
 
 ## Suggestions and contributions
 
