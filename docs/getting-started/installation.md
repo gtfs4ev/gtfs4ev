@@ -35,3 +35,10 @@ pip install -e .
 
 Run any of the provided examples. See [Quickstart](quickstart.md) section for minimal working case, and other examples in [Examples](examples.md). 
 If the installation is successful, each example should run without errors and produce output result files.
+
+For developers or advanced users, GTFS4EV also provides an automated test suite. When installing from source, the tests can be executed using `pytest`. All tests should pass. 
+
+```bash
+pip install pytest
+pytest
+```
