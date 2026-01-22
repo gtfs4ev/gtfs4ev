@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="gtfs4ev",          
-    version=0.2.0,                  
+    version="0.2.0",                  
     description="A Python framework for simulating electric bus operations and charging demand using GTFS data",
     packages=["gtfs4ev"],
     long_description="README.md",
