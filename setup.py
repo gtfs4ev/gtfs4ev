@@ -5,7 +5,7 @@ setup(
     version="0.2.1",                  
     description="A Python framework for simulating electric bus operations and charging demand using GTFS data",
     packages=find_packages(),
-    long_description="README.md",
+    long_description = """GTFS4EV is an open-source Python tool for planning public bus electrification using GTFS data. It provides a modular workflow that includes GTFS data pre-processing, fleet operation simulation, and scenario-based charging. Additional features include GTFS data filtering, PV integration potential, ex-post impact analysis, flexible charging strategies, spatial visualization, and dual usage as a CLI or Python library. For more information and examples, see the [GTFS4EV GitHub repository](https://github.com/gtfs4ev/gtfs4ev).""",
     long_description_content_type="text/markdown",
     author="Jérémy Dumoulin",
     author_email="jeremy.dumoulin@epfl.ch",       
