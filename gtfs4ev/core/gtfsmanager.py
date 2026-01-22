@@ -1526,7 +1526,10 @@ class GTFSManager:
         try:
             df = pd.read_csv(file_path, usecols=['shape_id', 'shape_pt_lat', 'shape_pt_lon'],
                              dtype={'shape_id': str, 'shape_pt_lat': float, 'shape_pt_lon': float})
-            grouped = df.groupby('shape_id').apply(lambda x: LineString(zip(x['shape_pt_lon'], x['shape_pt_lat'])))
+            grouped = (
+                df.groupby('shape_id')[['shape_pt_lon', 'shape_pt_lat']]
+                  .apply(lambda x: LineString(zip(x['shape_pt_lon'], x['shape_pt_lat'])))
+            )
             gdf = gpd.GeoDataFrame(geometry=grouped, crs="EPSG:4326").reset_index()
         except Exception as e:
             raise ValueError("ERROR \t Problem creating GeoDataFrame from shapes.txt.") from e
