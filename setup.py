@@ -1,10 +1,10 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="gtfs4ev",          
-    version="0.2.0",                  
+    version="0.2.1",                  
     description="A Python framework for simulating electric bus operations and charging demand using GTFS data",
-    packages=["gtfs4ev"],
+    packages=find_packages(),
     long_description="README.md",
     long_description_content_type="text/markdown",
     author="Jérémy Dumoulin",
