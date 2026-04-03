@@ -1,4 +1,5 @@
 site_name: GTFS4EV
+site_url: https://gtfs4ev.github.io/gtfs4ev/
 site_description: Python framework for simulating electric bus operations and charging demand using GTFS data 
 strict: false
 
