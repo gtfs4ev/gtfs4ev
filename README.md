@@ -6,10 +6,9 @@
 [![Python versions](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://pypi.org/project/gtfs4ev/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Project Status: Active](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/gtfs4ev/gtfs4ev)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/gtfs4ev/gtfs4ev/actions)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://gtfs4ev.github.io/gtfs4ev/)
 
-`GTFS4EV` is an open-source Python tool designed to support the planning of public bus electrification. By leveraging the standardized General Transit Feed Specification (GTFS), it allows planners and researchers to quickly simulate bus operations and explore electrification scenarios without requiring proprietary or vehicle-level operational data. It bridges the gap between detailed agent-based simulators and simplified first-order calculators, providing a modular workflow for GTFS data pre-processing, fleet operation and charging simulation, and ex-post analysis of impacts (CO₂ savings, exposure to air pollution, fuel cost savings) and the potential integration of photovoltaic energy.
+`GTFS4EV` is an open-source Python tool designed to support the planning of public bus electrification. By leveraging the standardized [General Transit Feed Specification (GTFS)](https://gtfs.org/), it allows planners and researchers to quickly simulate bus operations and explore electrification scenarios without requiring proprietary or vehicle-level operational data. It bridges the gap between detailed agent-based simulators and simplified first-order calculators, providing a modular workflow for GTFS data pre-processing, fleet operation and charging simulation, and ex-post analysis of impacts (CO₂ savings, exposure to air pollution, fuel cost savings) and the potential integration of photovoltaic energy.
 
 The tool can be imported as a Python library or used with a command-line interface (CLI). The API of `GTFS4EV` has been designed in an object-oriented manner and is easily extendable. 
 
@@ -57,7 +56,7 @@ It is recommended to use a dedicated virtual environment. See for instance the c
 pip install gtfs4ev
 ```
 
-For developers, the model can be installed with:
+For users who want to work with the development version or modify the code:
 
 ```bash
 git clone https://github.com/gtfs4ev/gtfs4ev.git
@@ -127,11 +126,13 @@ Below are selected outputs derived from a case study of Lusaka’s minibus taxi 
 
 ![Example results](docs/img/example_results.png)
 
+More examples and related scientific work can be found in the [References section](https://gtfs4ev.github.io/gtfs4ev/appendix/references/) of the full documentation.
+
 ## Suggestions and contributions
 
-We welcome any contributions or suggestions! Please see our Contributing Guidelines. If you encounter a bug or have a feature request, please open an issue.
+We welcome any contributions or suggestions! Please see the [Contributing section](https://gtfs4ev.github.io/gtfs4ev/appendix/contributing/) of the full documentation. If you encounter a bug or have a feature request, please open an issue.
 
-## Acknowledgment 
+## Acknowledgments 
 
 This project was supported by the HORIZON [OpenMod4Africa](https://openmod4africa.eu/) project (Grant number 101118123), with funding from the European Union and the State Secretariat for Education, Research and Innovation (SERI) for the Swiss partners. We also gratefully acknowledge the support of OpenMod4Africa partners for their contributions and collaboration.
 
