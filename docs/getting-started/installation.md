@@ -1,7 +1,7 @@
 GTFS4EV comes as a Python package. If this is your first time using Python, we recommend using **pip** or **conda** as package
 managers. Both are available on Windows, macOS, and GNU/Linux systems.
 
-GTFS4EV has been tested with **Python 3.12 and 3.13**. While newer Python versions may work,
+GTFS4EV has been tested with **Python 3.12**. While newer Python versions may work,
 they are not officially tested yet.
 
 Also, we recommend installing GTFS4EV inside a **dedicated virtual environment**.

@@ -13,7 +13,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.12",
+    python_requires=">=3.12,<3.13",
     install_requires=[
         "pandas==2.2.3",
         "numpy==2.2.4",

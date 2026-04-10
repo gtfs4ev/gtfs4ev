@@ -3,7 +3,7 @@
 </center>
 
 [![PyPI version](https://badge.fury.io/py/gtfs4ev.svg)](https://badge.fury.io/py/gtfs4ev)
-[![Python versions](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)](https://pypi.org/project/gtfs4ev/)
+[![Python versions](https://img.shields.io/badge/python-3.12-blue)](https://pypi.org/project/gtfs4ev/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Project Status: Active](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/gtfs4ev/gtfs4ev)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://gtfs4ev.github.io/gtfs4ev/)
@@ -48,7 +48,7 @@ Main authors at the initiative of GTFS4EV: Jeremy Dumoulin (jeremy.dumoulin[at]e
 
 ## Installation
 
-It is recommended to use a dedicated virtual environment. See for instance the creation of a virtual environment [with pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/) or [with conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html). `GTFS4EV` has been tested with Python 3.12 and 3.13. 
+It is recommended to use a dedicated virtual environment. See for instance the creation of a virtual environment [with pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/) or [with conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html). `GTFS4EV` has been tested with Python 3.12. 
 
 `GTFS4EV` is available as a PyPI package and can be installed via pip with:
 
