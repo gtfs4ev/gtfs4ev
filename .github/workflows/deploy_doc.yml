@@ -22,7 +22,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install mkdocs mkdocs-material
+        pip install pytest mkdocs mkdocs-material mkdocstrings[python]
 
     - name: Build and deploy documentation
       run: mkdocs gh-deploy --force
