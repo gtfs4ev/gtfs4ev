@@ -53,12 +53,9 @@ Note that only code changes (not documentation-only updates) are eligible for re
 
 Main steps of the release process (main developper only):
 
-1. **Update version**
-   - Bump the version in `setup.py` (or equivalent)
+1. **Update version**: Bump the version in `setup.py` (or equivalent)
 
-2. **Create a GitHub release**
-   - Merge the PR into `main`
-   - Create a GitHub release with a tag matching the version (e.g. `vX.Y.Z`) 
+2. **Create a GitHub release**: After merging into `main`, create a GitHub release with a tag matching the version (e.g. `vX.Y.Z`). This can be done using the GitHub web interface directly.
 
 3. **Build locally and upload with Twine**
    ```bash   
