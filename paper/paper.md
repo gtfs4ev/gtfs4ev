@@ -42,7 +42,7 @@ bibliography: paper.bib
 
 # Summary
 
-Planning the electrification of public bus fleets is a complex text, that requires modeling multiple interacting components, including electric vehicle characteristics, travel patterns, available charging infrastructure, and context-specific operational constraints and objectives. However, this typically requires detailed operational data on bus movements, which are often unavailable or incomplete in many regions, creating a major barrier to public transport electrification.
+Planning the electrification of public bus fleets is a complex task, that requires modeling multiple interacting components, including electric vehicle characteristics, travel patterns, available charging infrastructure, and context-specific operational constraints and objectives. However, this typically requires detailed operational data on bus movements, which are often unavailable or incomplete in many regions, creating a major barrier to public transport electrification.
 
 To address this gap, we introduce GTFS4EV, an open-source tool that leverages the widely available General Transit Feed Specification (GTFS) data to explore different electrification pathways for public bus fleets. GTFS4EV enables users to simulate mobility patterns, estimate energy demand, and assess the feasibility of various electrification scenarios, while providing insights into key technical requirements such as battery sizing and charging infrastructure needs. It supports the integration of custom charging strategies, allowing flexible exploration of context-specific scenarios. This makes it a powerful decision-support tool for identifying effective and tailored electrification strategies.
 
