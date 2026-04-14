@@ -32,6 +32,15 @@ Once a pull request is opened:
 
 Please note that changes are only incorporated into the codebase after being reviewed and merged by a maintainer. Small, focused contributions are preferred.
 
+## Continuous Integration (CI)
+
+This repository uses GitHub Actions to automatically run CI on every push to `main` and every pull request.
+
+CI:
+- Runs on Ubuntu, Windows, and macOS (Python 3.12)
+- Installs the package and executes the test suite with `pytest`
+- If changes affect the `docs/` folder, documentation may be rebuilt and deployed to GitHub Pages using `mkdocs gh-deploy`.
+
 ## Code style
 
 Please follow the existing style and structure in the codebase.
