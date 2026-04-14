@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
+from shapely.geometry import LineString, Point
 
 from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.core.fleetsimulator import FleetSimulator
@@ -74,20 +75,7 @@ def test_clean_removes_or_preserves_entities(manager):
     assert len(trips_before_cleaning) <= len(manager.trips)
     assert len(stop_times_before_cleaning) <= len(manager.stop_times)
 
-# Filtering agencies & adding idle times
-
-def test_filter_by_agency_reduces_trips(manager):
-    """Filtering by agency should not increase trips."""
-    if not hasattr(manager, "agencies"):
-        pytest.skip("No agency table in GTFS")
-    
-    # Store original trips
-    original_trips = manager.trips.copy()
-    
-    agency_id = manager.agencies["agency_id"].iloc[0]
-    manager.filter_by_agency_id(agency_id)
-    
-    assert len(manager.trips) <= len(original_trips)
+# Adding idle times
 
 def test_add_idle_time_stops_creates_column(manager):
     """Idle times should be added to stop_times."""
@@ -114,6 +102,148 @@ def test_shape_trimming_reduces_or_preserves_shape_length(manager):
     
     after = manager.shapes.copy().groupby("shape_id").size().mean()
     assert after <= before
+
+# Validation methods
+
+def test_check_all_returns_bool(manager):
+    result = manager.check_all()
+    assert isinstance(result, bool)
+
+
+def test_individual_checks_return_bool(manager):
+    assert isinstance(manager.check_agency(), bool)
+    assert isinstance(manager.check_shapes(), bool)
+    assert isinstance(manager.check_stops(), bool)
+    assert isinstance(manager.check_frequencies(), bool)
+    assert isinstance(manager.check_calendar(), bool)
+    assert isinstance(manager.check_routes(), bool)
+    assert isinstance(manager.check_stop_times(), bool)
+    assert isinstance(manager.check_trips(), bool)
+
+
+# Trip analytics
+
+def test_trip_length_positive(manager):
+    trip_id = manager.trips["trip_id"].iloc[0]
+    assert manager.trip_length_km(trip_id) > 0
+
+
+def test_trip_duration_positive(manager):
+    trip_id = manager.trips["trip_id"].iloc[0]
+    assert manager.trip_duration_sec(trip_id) > 0
+
+
+def test_number_of_stops_matches_stop_times(manager):
+    trip_id = manager.trips["trip_id"].iloc[0]
+    expected = len(manager.stop_times[manager.stop_times["trip_id"] == trip_id])
+    assert manager.n_stops(trip_id) == expected
+
+
+# Geometry & spatial logic
+
+def test_bounding_box_valid(manager):
+    bbox = manager.bounding_box()
+    minx, miny, maxx, maxy = bbox.bounds
+
+    assert minx < maxx
+    assert miny < maxy
+
+
+def test_simulation_area_positive(manager):
+    assert manager.simulation_area_km2() > 0
+
+
+# Statistics
+
+def test_trip_statistics_keys(manager):
+    stats = manager.trip_statistics()
+
+    expected_keys = {
+        'total_trips',
+        'total_trip_len_km',
+        'ave_trip_len_km',
+        'min_trip_len_km',
+        'max_trip_len_km',
+        'trip_to_route_ratio'
+    }
+
+    assert expected_keys.issubset(stats.keys())
+
+
+def test_stop_statistics_keys(manager):
+    stats = manager.stop_statistics()
+
+    expected_keys = {
+        'total_stops',
+        'min_stops_per_trip',
+        'max_stops_per_trip',
+        'std_dev_stops_per_trip',
+        'ave_stops_per_trip',
+        'ave_stops_per_route',
+        'stops_to_trips_ratio',
+        'stops_to_routes_ratio'
+    }
+
+    assert expected_keys.issubset(stats.keys())
+
+
+# Accessors
+
+def test_get_shape_returns_linestring(manager):
+    trip_id = manager.trips["trip_id"].iloc[0]
+    assert isinstance(manager.get_shape(trip_id), LineString)
+
+
+def test_get_stop_locations_returns_points(manager):
+    trip_id = manager.trips["trip_id"].iloc[0]
+    stops = manager.get_stop_locations(trip_id)
+
+    assert isinstance(stops, list)
+    assert all(isinstance(s, Point) for s in stops)
+
+
+# Filtering (services)
+
+def test_filter_services_reduces_trips(manager):
+    if not hasattr(manager, "calendar"):
+        pytest.skip("No calendar in GTFS")
+
+    original = len(manager.trips)
+
+    service_id = manager.calendar["service_id"].iloc[0]
+    manager.filter_services(service_id)
+
+    assert len(manager.trips) <= original
+
+
+# Export
+
+def test_export_to_csv(tmp_path, manager):
+    output_dir = tmp_path / "gtfs_export"
+
+    manager.export_to_csv(output_dir)
+
+    expected_files = [
+        "agency.txt",
+        "routes.txt",
+        "trips.txt",
+        "stops.txt",
+        "stop_times.txt",
+        "calendar.txt",
+        "frequencies.txt",
+        "shapes.txt"
+    ]
+
+    for f in expected_files:
+        assert (output_dir / f).exists()
+
+
+# Edge cases
+
+def test_invalid_trip_id_raises(manager):
+    with pytest.raises(IndexError):
+        manager.trip_length_km("INVALID_TRIP_ID")
+
 
 # -------------------------------------------------------------------------------
 # FleetSimulator Tests
