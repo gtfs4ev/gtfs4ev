@@ -542,21 +542,6 @@ class TripSimulator:
     ## Helpers
     ## ============================================================
 
-    def trip_duration_sec(self) -> int:
-        """
-        Compute the total duration of the trip.
-
-        The duration is defined as the time difference between the first
-        arrival and the last departure in the GTFS stop times.
-
-        Returns:
-            int: Trip duration in seconds.
-        """
-        trip_stop_times = self.gtfs_manager.stop_times[self.gtfs_manager.stop_times['trip_id'] == self.trip_id]
-        duration = (trip_stop_times['departure_time'].iloc[-1] - trip_stop_times['arrival_time'].iloc[0]).total_seconds()
-
-        return duration
-
     def max_vehicles_in_operation(self) -> int:
         """
         Estimate the maximum number of vehicles required to operate the trip.
@@ -581,7 +566,7 @@ class TripSimulator:
         min_headway = trip_frequencies['headway_secs'].min()
 
         # Compute the number of vehicles needed
-        max_num_vehicles = self.trip_duration_sec() / min_headway
+        max_num_vehicles = self.gtfs_manager.trip_duration_sec(self.trip_id) / min_headway
 
         return max(1, round(max_num_vehicles))
 
