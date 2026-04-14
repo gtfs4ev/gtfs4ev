@@ -6,7 +6,6 @@ import numpy as np
 import geopandas as gpd
 from pathlib import Path
 from shapely.geometry import LineString, Point, box
-from shapely.ops import transform, snap
 import pyproj
 from pyproj import Geod
 from contextlib import redirect_stdout

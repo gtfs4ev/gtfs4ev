@@ -4,9 +4,6 @@ import sys
 import os
 import importlib.util
 import time
-import json
-import pandas as pd
-from shapely.ops import substring
 
 # Import relevant classes from the GTFS4EV package
 from gtfs4ev.core.gtfsmanager import GTFSManager

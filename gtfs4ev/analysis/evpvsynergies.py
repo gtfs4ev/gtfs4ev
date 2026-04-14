@@ -8,7 +8,6 @@ import scipy.integrate as integrate
 from scipy.stats import spearmanr
 from scipy.integrate import IntegrationWarning
 import os
-import contextlib
 
 from gtfs4ev.analysis.pvsimulator import PVSimulator
 
