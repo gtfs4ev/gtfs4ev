@@ -4,13 +4,13 @@
 Some useful generic functions for gtfs4ev classes.
 """
 
-import pandas as pd
-from shapely.geometry import LineString, Point, shape, Polygon, box
 import numpy as np
 import rasterio
-from rasterio.features import geometry_mask
+import pyproj
 from rasterio.mask import mask
-from pyproj import Geod
+from pyproj import Geod, Transformer
+from shapely.geometry import LineString, Point
+from shapely.ops import transform
 
 def check_dataframe(df):
 	""" Returns false if a dataframe contains neither NaN nor empty values.	  

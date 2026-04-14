@@ -2,12 +2,11 @@
 
 import numpy as np
 import pandas as pd
-import random
-from datetime import date, datetime, timedelta
-import time
 import sys
+import random
+from datetime import datetime, timedelta
+
 import folium
-from folium.plugins import TimestampedGeoJson
 from folium.plugins import HeatMap
 import branca.colormap as cm
 
