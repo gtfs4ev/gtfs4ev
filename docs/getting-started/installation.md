@@ -6,6 +6,7 @@ they are not officially tested yet.
 
 Also, we recommend installing GTFS4EV inside a **dedicated virtual environment**.
 For guidance, see:
+
 - [Using pip and venv](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/)
 - [Using conda](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
 
@@ -42,3 +43,9 @@ For developers or advanced users, GTFS4EV also provides an automated test suite.
 pip install pytest
 pytest
 ```
+
+## Dependency management and reproducibility
+
+This software is currently developed and validated within a quite strictly defined Python and dependency environment (see `setup.py`). This design choice reflects the primary use case of GTFS4EV, where the software is intended to be executed either in CLI mode (no interaction with other python packages) or as a standalone Python workflow within a dedicated virtual environment, as is common in many research-oriented simulation packages.
+
+While integration with other python packages is of course possible to extend functionality, the main priority of GTFS4EV is reproducibility rather than modular interoperability. Strict control over the execution environment ensures consistent and deterministic simulation outputs across runs.
