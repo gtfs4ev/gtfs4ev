@@ -305,8 +305,11 @@ class EVPVSynergies:
         pv_values = self.pv_power_MW(day)(t_values)
         ev_values = self.ev_charging_demand_MW(t_values)
 
-        # Compute the Spearman rank correlation coefficient
-        spearman_coef, p_value = spearmanr(pv_values, ev_values)
+        # Compute the Spearman rank correlation coefficient - Checking first if calculation makes sense
+        if (np.all(pv_values == pv_values[0]) or np.all(ev_values == ev_values[0])):
+            spearman_coef, p_value = np.nan, np.nan
+        else:
+            spearman_coef, p_value = spearmanr(pv_values, ev_values)
 
         return spearman_coef, p_value
 

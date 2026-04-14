@@ -5,7 +5,7 @@ from pvlib import location, pvsystem, modelchain
 import pandas as pd
 from timezonefinder import TimezoneFinder
 import pytz
-from datetime import datetime
+from datetime import datetime, timezone
 
 class PVSimulator:
     """
@@ -311,8 +311,8 @@ class PVSimulator:
 
         # Because of the converting of the time zone, the last rows could be those of the next year
         # Here, we detect how many rows we have and shift them to the beginning of the data
-        tz = pytz.timezone(self.location.tz) 
-        n = int(tz.localize(datetime.utcnow()).utcoffset().total_seconds() / 3600)  # Get the number of hours from UTC
+        tz = pytz.timezone(self.location.tz)
+        n = int(datetime.now(timezone.utc).astimezone(tz).utcoffset().total_seconds() / 3600)
 
         last_n_rows = weather_data_poa.tail(n)
         remaining_rows = weather_data_poa.head(len(weather_data_poa) - n)
