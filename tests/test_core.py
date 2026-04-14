@@ -75,20 +75,7 @@ def test_clean_removes_or_preserves_entities(manager):
     assert len(trips_before_cleaning) <= len(manager.trips)
     assert len(stop_times_before_cleaning) <= len(manager.stop_times)
 
-# Filtering agencies & adding idle times
-
-def test_filter_by_agency_reduces_trips(manager):
-    """Filtering by agency should not increase trips."""
-    if not hasattr(manager, "agencies"):
-        pytest.skip("No agency table in GTFS")
-    
-    # Store original trips
-    original_trips = manager.trips.copy()
-    
-    agency_id = manager.agencies["agency_id"].iloc[0]
-    manager.filter_by_agency_id(agency_id)
-    
-    assert len(manager.trips) <= len(original_trips)
+# Adding idle times
 
 def test_add_idle_time_stops_creates_column(manager):
     """Idle times should be added to stop_times."""

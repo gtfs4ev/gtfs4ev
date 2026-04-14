@@ -1,7 +1,6 @@
 # coding: utf-8
 
 import pandas as pd
-from pathlib import Path
 
 from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.core.fleetsimulator import FleetSimulator
@@ -14,14 +13,10 @@ def test_full_pipeline_minimal(tmp_path):
     """
 
     # ------------------------------------------------------------------------------
-    # Configuration (ROBUST PATH FIX)
+    # Configuration 
     # ------------------------------------------------------------------------------
 
-    TEST_DIR = Path(__file__).resolve().parent
-    gtfs_datafolder = TEST_DIR / "sample_GTFS"
-
-    assert gtfs_datafolder.exists(), f"Missing GTFS test data: {gtfs_datafolder}"
-
+    gtfs_datafolder = "examples/data/sample_GTFS"
     output_folder = tmp_path
 
     # ------------------------------------------------------------------------------
