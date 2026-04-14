@@ -15,7 +15,7 @@ Possible ways to contribute include:
 
 If you are unsure where to start, feel free to open an issue to discuss your ideas.
 
-## Code contributions
+## Code and documentation contributions
 
 Code contributions follow the standard GitHub fork-and-pull-request workflow.
 
@@ -32,6 +32,10 @@ Once a pull request is opened:
 
 Please note that changes are only incorporated into the codebase after being reviewed and merged by a maintainer. Small, focused contributions are preferred.
 
+## Code style
+
+Please follow the existing style and structure in the codebase.
+
 ## Continuous Integration (CI)
 
 This repository uses GitHub Actions to automatically run CI on every push to `main` and every pull request.
@@ -42,6 +46,22 @@ CI on every pull request:
 
 If changes affect the `docs/` folder, documentation will be rebuilt automatically and deployed to GitHub Pages using `mkdocs gh-deploy` when pushing to the `main` branch.
 
-## Code style
+## PyPI release
 
-Please follow the existing style and structure in the codebase.
+PyPI releases are **not automated** and must be coordinated with the main developer. 
+Note that only code changes (not documentation-only updates) are eligible for release.
+
+Main steps of the release process (main developper only):
+
+1. **Update version**
+   - Bump the version in `setup.py` (or equivalent)
+
+2. **Create a GitHub release**
+   - Merge the PR into `main`
+   - Create a GitHub release with a tag matching the version (e.g. `vX.Y.Z`) 
+
+3. **Build locally and upload with Twine**
+   ```bash   
+   python -m build
+   twine upload dist/*
+   ```
