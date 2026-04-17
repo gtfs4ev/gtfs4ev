@@ -23,6 +23,7 @@ authors:
     orcid: 0000-0001-9712-8366 
     affiliation: 4
   - name: David Gianadda
+    orcid: 0009-0006-5460-7061
     affiliation: 4
   - name: Noémie Jeannin
     orcid: 0000-0001-5476-2375
