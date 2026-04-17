@@ -94,7 +94,7 @@ The package can be executed via a command-line interface, enabling rapid case st
 
 # Research impact statement
 
-GTFS4EV has been developed within the HORIZON OpenMod4Africa project, supporting energy and transport modelling in data-constrained regions. By relying on widely available GTFS inputs and transparent modelling assumptions, the framework enables reproducible and transferable analyses. The software is released as open source and designed for easy extension, with the aim of easy adoption by a wide community.
+GTFS4EV has been developed within the HORIZON OpenMod4Africa project, supporting energy and transport modelling in data-constrained regions. By relying on widely available GTFS inputs and transparent modelling assumptions, the framework enables reproducible and transferable analyses. The software is released as open source and designed for easy extension, with the aim of adoption by a wide community.
 
 It has already been applied in several studies, including a published paper on the benefits and challenges of minibus electrification in African cities [@Dumoulin2026], a master’s thesis on bus electrification in Addis Ababa [@Yifru2025], and ongoing work on the solarisation of bus rapid transit (BRT) systems in Dakar [@OpenMod4Africa2025WACREKeynote] and other transport modes. 
 
