@@ -40,7 +40,7 @@ affiliations:
    index: 2
  - name: Laboratoire Eau, Energie, Environnement et Procédés Industriels (LE3PI), Ecole Supérieure Polytechnique, Cheikh Anta Diop University of Dakar, Senegal
    index: 3
- - name: Research Institute of Information Systems — Easilab, HES-SO Valais/Wallis, Sierre, Switzerland
+ - name: Institute of Informatics (II), HES-SO Valais/Wallis, Sierre, Switzerland
    index: 4
 bibliography: paper.bib
 ---
@@ -51,7 +51,7 @@ Planning the electrification of public bus fleets is a complex task, that requir
 
 To address this gap, we introduce GTFS4EV, an open-source tool that leverages the widely available General Transit Feed Specification (GTFS) data to support electric bus planning. Relying on GTFS as the primary data input, GTFS4EV enables the simulation of bus operations, the estimation of charging demand, and a feasibility assessment of various electrification pathways, while providing insights into key technical requirements such as battery sizing and charging infrastructure needs. The tool supports flexible exploration of context-specific scenarios, notably by enabling the user to implement custom charging strategies alongside predefined ones. As such, GTFS4EV serves as a powerful decision-support tool for identifying effective and tailored electrification pathways.
 
-The tool is implemented as a modular Python library and provides a command-line interface for non-programming users. It enables rapid, data-driven exploration of realistic electrification scenarios, supporting bus operators and urban planners in assessing the requirements and benefits of different fleet electrification pathways.
+The tool is implemented as a modular Python library and provides a command-line interface for non-programming users. It enables rapid, data-driven exploration of realistic electrification scenarios, supporting bus operators and urban planners in assessing the requirements and benefits of different fleet electrification pathways. GTFS4EV also serves as a bridge between transport modelling and power system analysis by generating  charging demand profiles that can be directly used in power system models (e.g., pandapower [@pandapower2018] or OpenTEPES [@Ramos2022]), enabling grid impact assessments and integrated transport–power system analyses.
 
 # Statement of need
 
@@ -85,7 +85,7 @@ The core functionality of GTFS4EV spans three main dimensions, which together fo
 
 GTFS4EV also includes supporting features such as built-in visualization and basic GTFS feed analysis, as well as a flexible charging strategy logic (i.e., multiple charging strategies can be defined and applied sequentially). The framework provides default rule-based depot and opportunity charging strategies, while remaining explicitly designed to accommodate additional user-defined strategies.
 
-Beyond the core simulation, GTFS4EV supports a set of ex-post analyses derived from the simulated fleet operation and charging demand. In particular, it enables a preliminary assessment of PV integration potential by evaluating the temporal alignment between locally estimated PV generation and the aggregated charging demand. Additional ex-post analyses include the estimation of CO$_2$ emissions savings, reductions in air pollution exposure, and fuel cost savings relative to conventional diesel operations. Together, these complementary analyses broaden the decision space addressed by GTFS4EV and support the needs of the various stakeholders involved in public bus fleet electrification.
+Beyond the core simulation, GTFS4EV supports a set of ex-post analyses derived from the simulated fleet operation and charging demand. In particular, it enables a preliminary assessment of PV integration potential by evaluating the temporal alignment between locally estimated PV generation and the aggregated charging demand. Additional ex-post analyses include the estimation of CO<sub>2</sub> emissions savings, reductions in air pollution exposure, and fuel cost savings relative to conventional diesel operations. Together, these complementary analyses broaden the decision space addressed by GTFS4EV and support the needs of the various stakeholders involved in public bus fleet electrification.
 
 # Implementation 
 
