@@ -12,28 +12,26 @@ tags:
 authors:
   - name: Jérémy Dumoulin
     orcid: 0000-0002-8991-8349
-    corresponding: true # 
-    affiliation: 1 # 
+    corresponding: true 
+    affiliation: "1" 
   - name: Cheikh Mouhamed Fadel Kebe
     orcid: 0009-0000-4121-5751
-    affiliation:
-      - 1
-      - 3
+    affiliation: "1, 3"
   - name: David Wannier
     orcid: 0000-0001-9712-8366 
-    affiliation: 4
+    affiliation: "4"
   - name: David Gianadda
     orcid: 0009-0006-5460-7061
-    affiliation: 4
+    affiliation: "4"
   - name: Noémie Jeannin
     orcid: 0000-0001-5476-2375
-    affiliation: 1
+    affiliation: "1"
   - name: Christophe Ballif
     orcid: 0000-0001-8989-0545
-    affiliation: 1
+    affiliation: "1"
   - name: Nicolas Wyrsch
     orcid: 0000-0002-4588-0166
-    affiliation: 1
+    affiliation: "1"
 affiliations:
  - name: Photovoltaics and thin film electronics laboratory (PV-LAB), École Polytechnique Fédérale de Lausanne (EPFL), Institute of Electrical and Microengineering (IEM), Neuchâtel, Switzerland
    index: 1
