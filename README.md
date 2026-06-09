@@ -102,7 +102,7 @@ charging = ChargingSimulator(
     charging_powers_kW={"depot":[[11,0.5],[22,0.5]],"terminal":[[150,1.0]]}
 )
 charging.compute_charging_schedule(
-    strategies=["terminal_random","depot_night"],
+    charging_strategies=["terminal_random","depot_night"],
     charge_probability_terminal=0.5,
     depot_travel_time_min=[30,15]
 )
