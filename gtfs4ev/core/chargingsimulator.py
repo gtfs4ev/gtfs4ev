@@ -390,7 +390,7 @@ class ChargingSimulator:
             avg_lon = df_valid['coordinates'].apply(lambda x: x[1]).mean()
             center = [avg_lat, avg_lon]
 
-        m = folium.Map(location=center, zoom_start=12)
+        m = folium.Map(location=center, zoom_start=12, tiles="CartoDB positron")
 
         # Define the properties to plot
         layers_info = {

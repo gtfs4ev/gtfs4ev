@@ -1329,7 +1329,7 @@ class GTFSManager:
         center_lon = (bbox.bounds[0] + bbox.bounds[2]) / 2
         
         # Initialize map
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=12, tiles="CartoDB positron")
 
         geojson_data = self.get_network_geojson()
 
@@ -1486,7 +1486,7 @@ class GTFSManager:
         # Map center: first stop coordinates
         first_point = point_features[0]["geometry"]["coordinates"]
         center_lon, center_lat = first_point[0], first_point[1]
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=14)
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=14, tiles="CartoDB positron")
 
         # Add trip shape
         folium.GeoJson(

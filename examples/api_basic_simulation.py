@@ -105,9 +105,9 @@ gtfs.generate_network_map(f"{OUTPUT_FOLDER}/GTFS_map_alldata.html")
 # charging.charging_schedule_perstop.to_csv(f"{OUTPUT_FOLDER}/charging_schedules_per_stop.csv", index=False)
 
 # Generate a map of charging activity at stops and terminals
-# charging.generate_charging_map(stop_charging_schedule=charging.charging_schedule_perstop, filepath=f"{OUTPUT_FOLDER}/charging_stop_map.html")
+charging.generate_charging_map(stop_charging_schedule=charging.charging_schedule_perstop, filepath=f"{OUTPUT_FOLDER}/charging_stop_map.html")
 
 # Generate a spatio-temporal fleet trajectory (can be large for full GTFS feeds)
-# fleet_trajectory = fleet_sim.get_fleet_trajectory(time_step=120)
-# fleet_trajectory.to_csv(f"{OUTPUT_FOLDER}/fleet_trajectory.csv", index=True)
-# fleet_sim.generate_fleet_trajectory_map(fleet_trajectory=fleet_trajectory, filepath=f"{OUTPUT_FOLDER}/fleet_trajectory_map.html")
+fleet_trajectory = fleet_sim.get_fleet_trajectory(time_step=120)
+fleet_trajectory.to_csv(f"{OUTPUT_FOLDER}/fleet_trajectory.csv", index=True)
+fleet_sim.generate_fleet_trajectory_map(fleet_trajectory=fleet_trajectory, filepath=f"{OUTPUT_FOLDER}/fleet_trajectory_map.html")

@@ -7,6 +7,7 @@ from shapely.ops import substring
 from shapely.geometry import LineString, Point
 import folium
 from folium.plugins import TimestampedGeoJson
+from datetime import datetime, date
 
 from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.utils import helpers as hlp
@@ -745,7 +746,7 @@ class TripSimulator:
 
         # Create base map centered at the first valid position
         first_position = df.iloc[0]
-        m = folium.Map(location=[first_position['latitude'], first_position['longitude']], zoom_start=12)
+        m = folium.Map(location=[first_position['latitude'], first_position['longitude']], zoom_start=12, tiles="CartoDB positron")
 
         # Add trip shape (polyline) to the map if available
         trip_linestring = self.gtfs_manager.get_shape(self.trip_id)
