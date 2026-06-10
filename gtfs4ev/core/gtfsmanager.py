@@ -1258,6 +1258,55 @@ class GTFSManager:
         except Exception as e:
             print(f"\t - Failed to export shapes.txt: {e}")
 
+    def get_network_geojson(self) -> dict:
+        """
+        Return the full GTFS network as a GeoJSON FeatureCollection.
+
+        The returned object contains two types of features:
+
+        - **LineString** features, one per shape, with properties:
+          ``shape_id``, ``trip_count``, and ``trip_ids``.
+        - **Point** features, one per stop, with properties:
+          ``stop_id`` and ``stop_name``.
+
+        Returns:
+            dict: A GeoJSON FeatureCollection dictionary.
+
+        """
+        features = []
+
+        for _, row in self.shapes.iterrows():
+            related_trips = self.trips[self.trips['shape_id'] == row['shape_id']]
+            feature = {
+                "type": "Feature",
+                "properties": {
+                    "shape_id": row["shape_id"],
+                    "trip_count": len(related_trips),
+                    "trip_ids": ", ".join(related_trips['trip_id'].tolist())
+                },
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [(lon, lat) for lon, lat in row["geometry"].coords]
+                }
+            }
+            features.append(feature)
+
+        for _, row in self.stops.iterrows():
+            feature = {
+                "type": "Feature",
+                "properties": {
+                    "stop_id": row["stop_id"],
+                    "stop_name": row["stop_name"]
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [row.geometry.x, row.geometry.y]
+                }
+            }
+            features.append(feature)
+
+        return {"type": "FeatureCollection", "features": features}
+
     def generate_network_map(self, filepath: str) -> None:
         """
         Generate an interactive HTML map visualizing the full GTFS network.
@@ -1282,38 +1331,23 @@ class GTFSManager:
         # Initialize map
         m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 
-        features = []
+        geojson_data = self.get_network_geojson()
 
-        for _, row in self.shapes.iterrows():
-            # Get trip details for popup
-            related_trips = self.trips[self.trips['shape_id'] == row['shape_id']]
-            trip_info = "".join(
-                f"<b>Trip ID:</b> {trip['trip_id']}<br>"
-                f"<b>Length:</b> {self.trip_length_km(trip['trip_id']):.2f} km<br>"
-                f"<b>Stops:</b> {self.n_stops(trip['trip_id'])}<br>"
-                for _, trip in related_trips.iterrows()
-            )
-            popup_content = f"<b>Shape ID:</b> {row['shape_id']}<br>{trip_info if trip_info else 'No trip information'}"
+        # Split features by geometry type
+        line_features = [f for f in geojson_data["features"] if f["geometry"]["type"] == "LineString"]
+        point_features = [f for f in geojson_data["features"] if f["geometry"]["type"] == "Point"]
 
-            # Create GeoJSON feature
-            feature = {
-                "type": "Feature",
-                "properties": {
-                    "shape_id": row["shape_id"],
-                    "popup": popup_content
-                },
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": [(lon, lat) for lon, lat in row["geometry"].coords]
-                }
-            }
-            features.append(feature)
-
-        geojson_data = {"type": "FeatureCollection", "features": features}
-
-        # Add route polylines using GeoJson
+        # Build popup HTML for line features and add route polylines using GeoJson
+        line_features_with_popup = [
+            {**f, "properties": {**f["properties"], "popup": (
+                f"<b>Shape ID:</b> {f['properties']['shape_id']}<br>"
+                f"<b>Trips:</b> {f['properties']['trip_count']}<br>"
+                f"<b>Trip IDs:</b> {f['properties']['trip_ids']}"
+            )}}
+            for f in line_features
+        ]
         route_layer = folium.GeoJson(
-            geojson_data,
+            {"type": "FeatureCollection", "features": line_features_with_popup},
             name="Routes",
             style_function=lambda feature: {
                 "color": "blue",
@@ -1327,18 +1361,99 @@ class GTFSManager:
             tooltip=folium.GeoJsonTooltip(fields=["popup"], aliases=["Info"], parse_html=True),
         ).add_to(m)
 
-        # Add stop markers
+        # Add stop markers from GeoJSON point features
         marker_cluster = MarkerCluster().add_to(m)
-        for _, row in self.stops.iterrows():
+        for feature in point_features:
+            lon, lat = feature["geometry"]["coordinates"]
+            props = feature["properties"]
             folium.Marker(
-                location=[row.geometry.y, row.geometry.x],
-                popup=f"Stop: {row['stop_name']} ({row['stop_id']})",
+                location=[lat, lon],
+                popup=f"<b>{props['stop_name']}</b><br>ID: {props['stop_id']}",
                 icon=folium.Icon(color='red', icon='info-sign')
             ).add_to(marker_cluster)
 
         # Save the map
         m.save(filepath)
         print(f"INFO \t Map successfully generated and saved to {filepath}")
+
+    def get_trip_geojson(self, trip_id: str, projected: bool = True) -> dict:
+        """
+        Return a single trip as a GeoJSON FeatureCollection.
+
+        The returned object contains two types of features:
+
+        - One **LineString** feature representing the trip shape, with
+          properties: ``trip_id`` and ``shape_id``.
+        - N **Point** features, one per stop in stop sequence order, with
+          properties: ``stop_id``, ``stop_name``, and ``stop_sequence``.
+          Stop geometries are optionally projected onto the trip shape.
+
+        Args:
+            trip_id (str): Identifier of the trip.
+            projected (bool, optional): If True, stop locations are projected
+                onto the closest point along the trip shape. Defaults to True.
+
+        Returns:
+            dict: A GeoJSON FeatureCollection dictionary.
+
+        Raises:
+            IndexError: If the provided ``trip_id`` does not exist.
+
+        """
+        # Get trip shape
+        trip_row = self.trips[self.trips['trip_id'] == trip_id].iloc[0]
+        shape_id = trip_row['shape_id']
+        linestring = self.shapes[self.shapes['shape_id'] == shape_id]['geometry'].iloc[0]
+
+        features = []
+
+        # LineString feature for the trip shape
+        features.append({
+            "type": "Feature",
+            "properties": {
+                "trip_id": trip_id,
+                "shape_id": shape_id
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [(lon, lat) for lon, lat in linestring.coords]
+            }
+        })
+
+        # Get and sort stops
+        stop_times_trip = self.stop_times[self.stop_times['trip_id'] == trip_id].sort_values("stop_sequence")
+        stops_with_geom = pd.merge(
+            stop_times_trip,
+            self.stops[['stop_id', 'stop_name', 'geometry']],
+            on='stop_id',
+            how='left'
+        )
+
+        # Project stops onto the shape if requested
+        if projected:
+            stops_with_geom['point_geom'] = stops_with_geom['geometry'].apply(
+                lambda pt: hlp.find_closest_point(linestring, pt)
+            )
+        else:
+            stops_with_geom['point_geom'] = stops_with_geom['geometry']
+
+        # Point features for stops
+        for _, row in stops_with_geom.iterrows():
+            pt = row['point_geom']
+            features.append({
+                "type": "Feature",
+                "properties": {
+                    "stop_id": row["stop_id"],
+                    "stop_name": row["stop_name"],
+                    "stop_sequence": int(row["stop_sequence"])
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [pt.x, pt.y]
+                }
+            })
+
+        return {"type": "FeatureCollection", "features": features}
 
     def generate_single_trip_map(self, trip_id: str, filepath: str = "trip_map.html", projected: bool = True) -> None:
         """
@@ -1363,37 +1478,19 @@ class GTFSManager:
         """
         print(f"INFO \t Creating a HTML map for trip {trip_id} (projecting stops to trip shapes={projected})...")
 
-        # Get trip shape
-        trip_row = self.trips[self.trips['trip_id'] == trip_id].iloc[0]
-        shape_id = trip_row['shape_id']
-        linestring = self.shapes[self.shapes['shape_id'] == shape_id]['geometry'].iloc[0]
+        geojson_data = self.get_trip_geojson(trip_id=trip_id, projected=projected)
 
-        # Get and sort stops
-        stop_times_trip = self.stop_times[self.stop_times['trip_id'] == trip_id].sort_values("stop_sequence")
-        stops_with_geom = pd.merge(
-            stop_times_trip,
-            self.stops[['stop_id', 'stop_name', 'geometry']],
-            on='stop_id',
-            how='left'
-        )
+        line_features = [f for f in geojson_data["features"] if f["geometry"]["type"] == "LineString"]
+        point_features = [f for f in geojson_data["features"] if f["geometry"]["type"] == "Point"]
 
-        # Project stops if requested
-        if projected:
-            stops_with_geom['proj_geom'] = stops_with_geom['geometry'].apply(
-                lambda pt: hlp.find_closest_point(linestring, pt)
-            )
-            stop_points = stops_with_geom['proj_geom'].tolist()
-        else:
-            stop_points = stops_with_geom['geometry'].tolist()
-
-        # Map center
-        center_lat = stop_points[0].y
-        center_lon = stop_points[0].x
+        # Map center: first stop coordinates
+        first_point = point_features[0]["geometry"]["coordinates"]
+        center_lon, center_lat = first_point[0], first_point[1]
         m = folium.Map(location=[center_lat, center_lon], zoom_start=14)
 
         # Add trip shape
         folium.GeoJson(
-            data=linestring.__geo_interface__,
+            data={"type": "FeatureCollection", "features": line_features},
             name="Trip Shape",
             style_function=lambda _: {
                 "color": "blue",
@@ -1402,17 +1499,14 @@ class GTFSManager:
             }
         ).add_to(m)
 
-        # Add stop markers
+        # Add stop markers, building popup HTML from clean properties
         marker_cluster = MarkerCluster().add_to(m)
-        for i, pt in enumerate(stop_points):
-            stop_info = stops_with_geom.iloc[i]
-            stop_name = stop_info['stop_name']
-            stop_id = stop_info['stop_id']
-            stop_seq = stop_info['stop_sequence']
-
+        for feature in point_features:
+            lon, lat = feature["geometry"]["coordinates"]
+            props = feature["properties"]
             folium.Marker(
-                location=[pt.y, pt.x],
-                popup=f"<b>{stop_seq}. {stop_name}</b><br>ID: {stop_id}",
+                location=[lat, lon],
+                popup=f"<b>{props['stop_sequence']}. {props['stop_name']}</b><br>ID: {props['stop_id']}",
                 icon=folium.Icon(color='red', icon='info-sign')
             ).add_to(marker_cluster)
 
