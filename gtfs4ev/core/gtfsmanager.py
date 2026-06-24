@@ -773,6 +773,33 @@ class GTFSManager:
 
         return duration
 
+    def trip_terminal_time_sec(self, trip_id) -> float:
+        """
+        Calculate total idle time at terminal (start + end) of a trip in seconds.
+
+        Args:
+            trip_id (str): Identifier of the trip.
+
+        Returns:
+            float: Total terminal time in seconds.
+        """
+
+        trip_stop_times = self.stop_times[self.stop_times['trip_id'] == trip_id]
+
+        # start terminal dwell
+        start_dwell = (
+            trip_stop_times['departure_time'].iloc[0]
+            - trip_stop_times['arrival_time'].iloc[0]
+        ).total_seconds()
+
+        # end terminal dwell
+        end_dwell = (
+            trip_stop_times['departure_time'].iloc[-1]
+            - trip_stop_times['arrival_time'].iloc[-1]
+        ).total_seconds()
+
+        return start_dwell + end_dwell
+
     def ave_distance_between_stops(self, trip_id, correct_stop_loc = True) -> float:
         """
         Calculate the average distance between consecutive stops along a trip.

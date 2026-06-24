@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import pandas as pd
+import math
 import numpy as np
 from datetime import datetime
 from shapely.ops import substring
@@ -566,10 +567,14 @@ class TripSimulator:
         # Find the highest frequency (lowest headway)
         min_headway = trip_frequencies['headway_secs'].min()
 
-        # Compute the number of vehicles needed
-        max_num_vehicles = self.gtfs_manager.trip_duration_sec(self.trip_id) / min_headway
+        # Compute the duration of the trip and the idle time at terminals
+        trip_duration = self.gtfs_manager.trip_duration_sec(self.trip_id)
+        terminal_time = self.gtfs_manager.trip_terminal_time_sec(self.trip_id)
 
-        return max(1, round(max_num_vehicles))
+        # Compute the number of vehicles needed
+        max_num_vehicles = (trip_duration + terminal_time) / min_headway
+
+        return max(1, math.ceil(max_num_vehicles))
 
     ## ============================================================
     ## Trajectory reconstruction and visualization
