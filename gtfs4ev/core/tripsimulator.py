@@ -227,20 +227,21 @@ class TripSimulator:
 
         # --- Step 4: Build travel sequence event-by-event ---
         sequence = []
+
+        initial_duration = departure_times[0] - arrival_times[0]
         cumulative_distance = 0
-        cumulative_duration = 0
+        cumulative_duration = initial_duration
 
         # Add first event (at_terminal)
         sequence.append({
             "status": "at_terminal",
             "distance": 0,
-            "duration": departure_times[0] - arrival_times[0],
+            "duration": initial_duration,
             "distance_from_start": cumulative_distance,
             "duration_from_start": cumulative_duration,
             "location": stop_geometries[stop_ids[0]],
             "stop_id": stop_ids[0]
         })
-        cumulative_duration += departure_times[0] - arrival_times[0]
 
         # Optionally, add a local cache for substring calls if many segments are identical:
         sub_linestring_cache = {}
@@ -272,10 +273,9 @@ class TripSimulator:
                 sub_linestring = None
                 travel_distance_km = 0
 
-            # Travelling event:
-
+            # Travelling event:  
             cumulative_distance += travel_distance_km
-            cumulative_duration += travel_durations[i]
+            cumulative_duration += travel_durations[i]           
             
             sequence.append({
                 "status": "travelling",
@@ -285,9 +285,11 @@ class TripSimulator:
                 "duration_from_start": cumulative_duration,
                 "location": sub_linestring,  # LineString geometry
                 "stop_id": None
-            })            
+            })                       
 
             # Stop event:
+            cumulative_duration += departure_times[i + 1] - arrival_times[i + 1]
+
             sequence.append({
                 "status": "at_terminal" if i + 1 == len(stop_ids) - 1 else "at_stop",
                 "distance": 0,
@@ -297,7 +299,7 @@ class TripSimulator:
                 "location": stop_geometries[sid_next],
                 "stop_id": sid_next
             })
-            cumulative_duration += departure_times[i + 1] - arrival_times[i + 1]
+            
 
         self._single_trip_sequence = sequence
 
