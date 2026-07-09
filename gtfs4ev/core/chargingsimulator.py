@@ -851,7 +851,7 @@ class ChargingSimulator:
         # Iterate over each vehicle's charging schedule
         for _, row in vehicle_df.iterrows():
             for session in row['charging_sequence']:
-                stop_id = session.get('stop_id', '')  # Default to 'depot' if stop_id is missing
+                stop_id = session.get('stop_id', 'DEPOT')  # Default to 'depot' if stop_id is missing
                 location = session['location']
 
                 # Initialize data structures if encountering stop_id for the first time
