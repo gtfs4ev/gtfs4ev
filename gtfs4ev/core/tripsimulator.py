@@ -826,4 +826,84 @@ class TripSimulator:
 
         return m
 
+    ## ============================================================
+    ## Vehicle activity
+    ## ============================================================
+
+    def get_fleet_activity(self, time_step: int) -> pd.DataFrame:
+        """
+        Compute time-resolved fleet activity states.
+
+        Counts the number of vehicles in each operational state at each
+        timestep throughout the day.
+
+        States:
+            - depot
+            - at_stop
+            - at_terminal
+            - travelling
+
+        Args:
+            time_step (int): Temporal resolution in seconds.
+
+        Returns:
+            pd.DataFrame: Fleet activity counts indexed by time (HH:MM:SS).
+        """
+
+        if not hasattr(self, "_fleet_operation") or self._fleet_operation is None:
+            self.compute_fleet_operation()
+        if not hasattr(self, "_single_trip_sequence") or self._single_trip_sequence is None:
+            self.compute_single_trip_sequence()
+
+        times = pd.date_range("00:00:00", "23:59:59", freq=f"{time_step}s").time
+        times_sec = np.array([t.hour*3600 + t.minute*60 + t.second for t in times])
+
+        events = self._single_trip_sequence
+        durations = np.array([e["duration"] for e in events])
+        cumulative = np.concatenate(([0], np.cumsum(durations)))
+        statuses = np.array([e["status"] for e in events])
+        trip_duration = cumulative[-1]
+
+        activity = pd.DataFrame(
+            0,
+            index=times,
+            columns=["depot", "at_stop", "at_terminal", "travelling"]
+        )
+
+        for vehicle in self._fleet_operation:
+
+            state = np.full(len(times), "depot", dtype=object)
+
+            for seq in vehicle["travel_sequences"]:
+                if not seq["operating"]:
+                    continue
+
+                start = pd.to_datetime(seq["start_time"]).time()
+                end = pd.to_datetime(seq["end_time"]).time()
+
+                start_sec = start.hour*3600 + start.minute*60 + start.second
+                end_sec = end.hour*3600 + end.minute*60 + end.second
+
+                idx = np.where(
+                    (times_sec >= start_sec) &
+                    (times_sec < end_sec)
+                )[0]
+
+                if len(idx):
+                    offset = seq.get("offset_from_start", 0)
+                    elapsed = (times_sec[idx] - start_sec + offset) % trip_duration
+                    event_idx = np.maximum(0, np.searchsorted(cumulative, elapsed, side="right") - 1)
+                    state[idx] = statuses[event_idx]
+
+            vehicle_activity = pd.get_dummies(state).reindex(
+                columns=activity.columns,
+                fill_value=0
+            )
+
+            vehicle_activity.index = times
+
+            activity += vehicle_activity
+
+        return activity
+
 

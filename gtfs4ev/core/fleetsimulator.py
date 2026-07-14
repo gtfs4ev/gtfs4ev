@@ -320,6 +320,41 @@ class FleetSimulator:
         # Save the final merged map
         merged_map.save(filepath)
 
+    ## ============================================================
+    ## Time-resolved fleet activity
+    ## ============================================================
+
+    def get_fleet_activity(self, time_step: int, transient_regime=False) -> pd.DataFrame:
+        """
+        Compute the aggregated fleet activity over all trips.
+
+        For each timestep, counts all vehicles from all trips in each
+        activity state.
+        """
+
+        print(f"INFO \t Generating fleet activity...")
+
+        total_activity = None
+
+        for counter, trip_id in enumerate(self.trip_ids, start=1):
+
+            tripsim = TripSimulator(gtfs_manager=self.gtfs_manager, trip_id=trip_id)
+            tripsim.compute_fleet_operation(transient_regime=transient_regime)
+            
+            sys.stdout.write(f"\r \t Progress: {counter}/{len(self.trip_ids)} trips.")
+            sys.stdout.flush()
+
+            activity = tripsim.get_fleet_activity(time_step=time_step)
+
+            if total_activity is None:
+                total_activity = activity
+            else:
+                total_activity += activity
+
+        print("")
+
+        return total_activity
+
 ## ============================================================
 ## Helper function (outside the class) to process trips using multiprocessing
 ## ============================================================
