@@ -44,7 +44,7 @@ CI on every pull request:
 - Runs on Ubuntu, Windows, and macOS (Python 3.12)
 - Installs the package and executes the test suite with `pytest`
 
-If changes affect the `docs/` folder, documentation will be rebuilt automatically and deployed to GitHub Pages using `mkdocs gh-deploy` when pushing to the `main` branch.
+If changes affect the `docs/` folder or `setup.py` (i.e. in case of version change prior to release on PyPI), documentation will be rebuilt automatically and deployed to GitHub Pages using `mkdocs gh-deploy` when pushing to the `main` branch.
 
 ## PyPI release
 
