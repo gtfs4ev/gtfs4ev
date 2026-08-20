@@ -17,7 +17,7 @@ To run the minimal examples, download the `data/` folder and the relevant script
     - `cli_basic.py`: for the command-line interface (CLI) example  
     - `api_basic_simulation.py`: for the Python API example  
 
-> Alternatively, you can [download the full GTFS4EV repository as a ZIP](https://github.com/gtfs4ev/gtfs4ev/tree/main/zipball/master/), extract it, and copy the `examples/` folder. This way, you get all scripts and data at once.
+> Alternatively, you can [download the full GTFS4EV repository as a ZIP](https://github.com/gtfs4ev/gtfs4ev/archive/refs/heads/main.zip), extract it, and copy the `examples/` folder. This way, you get all scripts and data at once.
 
 Place all files and the `data/` folder in the same directory. After downloading, this directory should at least contain this:
 
