@@ -124,7 +124,17 @@ Below are selected outputs derived from a case study of Lusaka’s minibus taxi 
  - Characterization of the existing minibus network
  - Analysis of fleet operation
  - Required battery capacities and number of charger in different charging scenarios
- - Aggregated charging load in different charging scenarios
+ - Aggregated charging load in  different charging scenarios
+
+The charging results shown below compare three scenarios built from GTFS4EV's built-in charging strategies:
+
+| Scenario | Charging strategies |
+| --- | --- |
+| S1 - Depot night | `charging_strategies=["depot_night"]` |
+| S2 - Depot day and night | `charging_strategies=["depot_day", "depot_night"]` |
+| S3 - Terminal and depot | `charging_strategies=["terminal_random", "depot_night"]` |
+
+When multiple strategies are specified, as in scenarios S2 and S3, GTFS4EV applies them sequentially. The first strategy is applied first, followed by the subsequent strategy for any remaining charging need. For a complete list and description of the available built-in charging strategies, see the [API documentation](https://gtfs4ev.github.io/gtfs4ev/api/core-classes/charging-simulator/).
 
 ![Example results](docs/img/example_results.png)
 
