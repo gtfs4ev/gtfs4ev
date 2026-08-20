@@ -70,6 +70,9 @@ class CostSavings:
         electricity_price: float = 0.3,
         diesel_consumption: float = 0.1,
         diesel_price: float = 1.385,
+        self_sufficiency: float = 0.0,
+        self_consumption: float = 1.0,
+        pv_lcoe: float = 0.0,
     ):
         """
         Initialize the economic savings calculator.
@@ -104,6 +107,9 @@ class CostSavings:
         self.electricity_price = electricity_price
         self.diesel_consumption = diesel_consumption
         self.diesel_price = diesel_price
+        self.self_sufficiency = self_sufficiency
+        self.self_consumption = self_consumption
+        self.pv_lcoe = pv_lcoe
 
         self.data = None
         self.results = None
@@ -126,25 +132,59 @@ class CostSavings:
         Results are stored internally and made available via the
         `results` attribute.
         """
+
         self.data = pd.read_csv(self.input_file)
 
         # Total annual distance
         total_km = self.data["total_distance_km"] * self.active_working_days
 
-        # Cost per km
-        diesel_cost_per_km = self.diesel_consumption * self.diesel_price
-        ev_cost_per_km = (
-            self.ev_consumption / self.charging_efficiency * self.electricity_price
+        # Diesel scenario
+        # ============================================================
+
+        diesel_cost_per_km = (
+            self.diesel_consumption 
+            * self.diesel_price
         )
 
-        savings_per_km = diesel_cost_per_km - ev_cost_per_km
+        diesel_cost = total_km * diesel_cost_per_km
 
-        # Compute economic savings
-        self.data["economic_savings_USD"] = total_km * savings_per_km
+        # Electric scenario
+        # ============================================================
+
+        effective_electricity_price = (
+            (1 - self.self_sufficiency) * self.electricity_price
+            + (self.self_sufficiency / self.self_consumption) * self.pv_lcoe
+        )
+
+        ev_cost_per_km = (
+            self.ev_consumption 
+            / self.charging_efficiency
+            * effective_electricity_price
+        )
+
+        electricity_cost = total_km * ev_cost_per_km
+
+        # Savings
+        # ============================================================
+
+        savings = diesel_cost - electricity_cost
+
+
+        # Store results
+        self.data["diesel_cost_USD"] = diesel_cost
+        self.data["electricity_cost_USD"] = electricity_cost
+        self.data["economic_savings_USD"] = savings
+
 
         # Select relevant output columns
         self.results = self.data[
-            ["vehicle_id", "trip_id", "economic_savings_USD"]
+            [
+                "vehicle_id",
+                "trip_id",
+                "diesel_cost_USD",
+                "electricity_cost_USD",
+                "economic_savings_USD",
+            ]
         ]
 
     def save_results(self, output_file: str) -> None:
@@ -163,21 +203,75 @@ class CostSavings:
         self.results.to_csv(output_file, index=False)
 
     def print_summary(self) -> None:
-        """
-        Print summary statistics of economic savings.
 
-        The summary includes:
-        - Average economic savings per vehicle
-        - Total economic savings across the fleet
-
-        Raises:
-            RuntimeError: If `compute_savings()` has not been called.
-        """
         if self.results is None:
-            raise RuntimeError("No results to summarize. Run compute_savings() first.")
+            raise RuntimeError(
+                "No results to summarize. Run compute_savings() first."
+            )
 
-        avg_savings = self.results["economic_savings_USD"].mean()
+        total_diesel = self.results["diesel_cost_USD"].sum()
+        total_electricity = self.results["electricity_cost_USD"].sum()
         total_savings = self.results["economic_savings_USD"].sum()
 
-        print(f"Average economic savings per vehicle: {avg_savings:.2f} USD")
+        print(f"Total diesel cost: {total_diesel:.2f} USD")
+        print(f"Total electricity cost: {total_electricity:.2f} USD")
         print(f"Total economic savings: {total_savings:.2f} USD")
+
+    ## ============================================================
+    ## Static helper method to calculate the LCOE
+    ## ============================================================
+
+    @staticmethod
+    def calculate_pv_lcoe(
+        investment_cost: float,
+        om_cost: float,
+        annual_yield: float,
+        lifetime: int,
+        discount_rate: float,
+        degradation_rate: float = 0.005,
+    ) -> float:
+        """
+        Calculate PV levelized cost of electricity (LCOE)
+        including annual PV degradation.
+
+        Args:
+            investment_cost:
+                Initial PV investment cost (USD/kWp).
+
+            om_cost:
+                Annual O&M cost (USD/kWp/year).
+
+            annual_yield:
+                First-year PV electricity production (kWh/kWp/year).
+
+            lifetime:
+                PV project lifetime (years).
+
+            discount_rate:
+                Discount rate as a fraction (e.g. 0.05).
+
+            degradation_rate:
+                Annual PV degradation rate as a fraction
+                (e.g. 0.005 = 0.5%/year).
+
+        Returns:
+            PV LCOE (USD/kWh).
+        """
+
+        discounted_costs = investment_cost
+        discounted_energy = 0
+
+        for year in range(1, lifetime + 1):
+
+            discount_factor = (1 + discount_rate) ** year
+
+            # Degraded PV production
+            energy_year = annual_yield * (
+                (1 - degradation_rate) ** (year - 1)
+            )
+
+            discounted_costs += om_cost / discount_factor
+
+            discounted_energy += energy_year / discount_factor
+
+        return discounted_costs / discounted_energy

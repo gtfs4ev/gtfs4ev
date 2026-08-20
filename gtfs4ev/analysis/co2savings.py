@@ -112,34 +112,57 @@ class CO2Savings:
 
     def compute_savings(self) -> None:
         """
-        Compute annual CO₂ emission reductions and diesel fuel savings.
-
-        This method:
-        - Loads fleet operation data from the input CSV file
-        - Annualizes traveled distance using active working days
-        - Computes diesel baseline emissions
-        - Computes EV-related emissions from electricity use
-        - Calculates emission reductions and diesel savings
+        Compute annual CO₂ emissions and emission reductions.
 
         Results are stored internally and made available via the
         `results` attribute.
         """
         self.data = pd.read_csv(self.input_file)
 
-        diesel_emissions_per_km = self.diesel_consumption * self.diesel_co2_intensity
+        # Emissions per km
+        diesel_emissions_per_km = (self.diesel_consumption * self.diesel_co2_intensity)
+
         ev_emissions_per_km = (
-            self.ev_consumption / self.charging_efficiency * self.electricity_co2_intensity
+            self.ev_consumption
+            / self.charging_efficiency
+            * self.electricity_co2_intensity
         )
 
         # Calculate total kilometers driven over the active working days
         total_km = self.data["total_distance_km"] * self.active_working_days
 
-        # Compute emission reductions in tonnes CO2 and diesel savings in liters
-        self.data["emission_reduction_tco2"] = (total_km * (diesel_emissions_per_km - ev_emissions_per_km)) / 1000
-        self.data["diesel_savings_L"] = total_km * self.diesel_consumption
+        # Diesel baseline emissions
+        self.data["diesel_emissions_tco2"] = (
+            total_km * diesel_emissions_per_km
+        ) / 1000
+
+        # EV electricity emissions
+        self.data["ev_emissions_tco2"] = (
+            total_km * ev_emissions_per_km
+        ) / 1000
+
+        # Emission reduction
+        self.data["emission_reduction_tco2"] = (
+            self.data["diesel_emissions_tco2"]
+            - self.data["ev_emissions_tco2"]
+        )
+
+        # Diesel fuel savings
+        self.data["diesel_savings_L"] = (
+            total_km * self.diesel_consumption
+        )
 
         # Select relevant columns for output
-        self.results = self.data[["vehicle_id", "trip_id", "emission_reduction_tco2", "diesel_savings_L"]]
+        self.results = self.data[
+            [
+                "vehicle_id",
+                "trip_id",
+                "diesel_emissions_tco2",
+                "ev_emissions_tco2",
+                "emission_reduction_tco2",
+                "diesel_savings_L",
+            ]
+        ]
 
     def save_results(self, output_file: str) -> None:
         """
