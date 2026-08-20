@@ -66,6 +66,8 @@ pip install -e .
 
 ## Quickstart
 
+For a step-by-step example, see the [Quickstart Guide](https://gtfs4ev.github.io/gtfs4ev/getting-started/quickstart/).
+
 ### As a command-line interface
 
 Get the GTFS data ready for your case study and populate a new configuration file with input values for your case study (see existing examples that you can copy and use as a blueprint in the `/example` folder). Note that GTFS data needs to be provided as a folder, not a .zip file.
