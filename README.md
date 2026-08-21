@@ -66,6 +66,8 @@ pip install -e .
 
 ## Quickstart
 
+For a step-by-step example, see the [Quickstart Guide](https://gtfs4ev.github.io/gtfs4ev/getting-started/quickstart/).
+
 ### As a command-line interface
 
 Get the GTFS data ready for your case study and populate a new configuration file with input values for your case study (see existing examples that you can copy and use as a blueprint in the `/example` folder). Note that GTFS data needs to be provided as a folder, not a .zip file.
@@ -117,12 +119,22 @@ charging.compute_charging_load_curve(time_step_s=60).to_csv("path/to/output/load
 
 ## Examples
 
-Below are selected outputs derived from a case study of Lusaka’s minibus taxi fleet (detailed in this [report](docs/cases/GTFS4EV_Lusaka_report_open.pdf)). These examples illustrate typical analyses such as:
+Below are selected outputs derived from a case study of Lusaka’s minibus taxi fleet (detailed in this [report](docs/cases/GTFS4EV_Lusaka_report_open.pdf)). The underlying GTFS data used for this case study are available from the [DigitalTransport4Africa gitlab repository for Lusaka](https://gitlab.com/digitaltransport/data/africa/lusaka). These examples illustrate typical analyses such as:
 
  - Characterization of the existing minibus network
  - Analysis of fleet operation
  - Required battery capacities and number of charger in different charging scenarios
- - Aggregated charging load in different charging scenarios
+ - Aggregated charging load in  different charging scenarios
+
+The charging results shown below compare three scenarios built from GTFS4EV's built-in charging strategies:
+
+| Scenario | Charging strategies |
+| --- | --- |
+| S1 - Depot night | `charging_strategies=["depot_night"]` |
+| S2 - Depot day and night | `charging_strategies=["depot_day", "depot_night"]` |
+| S3 - Terminal and depot | `charging_strategies=["terminal_random", "depot_night"]` |
+
+When multiple strategies are specified, as in scenarios S2 and S3, GTFS4EV applies them sequentially. The first strategy is applied first, followed by the subsequent strategy for any remaining charging need. For a complete list and description of the available built-in charging strategies, see the [API documentation](https://gtfs4ev.github.io/gtfs4ev/api/core-classes/charging-simulator/).
 
 ![Example results](docs/img/example_results.png)
 
