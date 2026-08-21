@@ -534,3 +534,126 @@ def test_repeated_charging_computation_consistency(charging_simulator):
 
     assert set(df1.columns) == set(df2.columns)
     assert len(df1) == len(df2)
+
+
+# Built-in charging strategies starting from a fresh fresh GTFS4EV state
+
+@pytest.fixture
+def charging_simulator(charging_powers):
+    """ChargingSimulator built from a fresh GTFS state."""
+    manager = GTFSManager("examples/data/sample_GTFS")
+
+    fleet_sim = FleetSimulator(manager)
+    fleet_sim.compute_fleet_operation()
+
+    return ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=10.0,
+        charging_powers_kW={
+            "depot": [[22, 0.5]],     
+            "terminal": [[50, 1.0]],            
+            "stop": [[50, 1.0]]
+        }
+    )
+
+def test_depot_night(charging_simulator):
+    """Depot-night charging load curve should match the expected output."""
+
+    charging_simulator.compute_charging_schedule(
+        charging_strategies=["depot_night"],
+        depot_travel_time_min=[0, 0]
+    )
+
+    actual = charging_simulator.compute_charging_load_curve(time_step_s=60).reset_index(drop=True)
+
+    expected = pd.read_csv("tests/expected/charging_load_curve_depot_night.csv")
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected,
+        rtol=1e-12,
+        atol=1e-12,
+        check_dtype=False
+    )
+
+def test_depot_day(charging_simulator):
+    """Depot-day charging load curve should match the expected output."""
+
+    charging_simulator.compute_charging_schedule(
+        charging_strategies=["depot_day"],
+        depot_travel_time_min=[0, 0]
+    )
+
+    actual = charging_simulator.compute_charging_load_curve(time_step_s=60).reset_index(drop=True)
+
+    expected = pd.read_csv("tests/expected/charging_load_curve_depot_day.csv")
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected,
+        rtol=1e-12,
+        atol=1e-12,
+        check_dtype=False
+    )
+
+def test_terminal_random(charging_simulator):
+    """Terminal random charging load curve should match the expected output."""
+
+    charging_simulator.compute_charging_schedule(
+        charging_strategies=["terminal_random"],
+        charge_probability_terminal=1.0
+    )
+
+    actual = charging_simulator.compute_charging_load_curve(time_step_s=60).reset_index(drop=True)
+
+    expected = pd.read_csv("tests/expected/charging_load_curve_terminal_random.csv")
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected,
+        rtol=1e-12,
+        atol=1e-12,
+        check_dtype=False
+    )
+
+def test_stop_random(charging_simulator):
+    """Stop random charging load curve should match the expected output."""
+
+    charging_simulator.compute_charging_schedule(
+        charging_strategies=["stop_random"],
+        charge_probability_stop=1.0
+    )
+
+    actual = charging_simulator.compute_charging_load_curve(time_step_s=60).reset_index(drop=True)
+
+    expected = pd.read_csv("tests/expected/charging_load_curve_stop_random.csv")
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected,
+        rtol=1e-12,
+        atol=1e-12,
+        check_dtype=False
+    )
+
+def test_terminal_specific_random(charging_simulator):
+    """Terminal specific random charging load curve should match the expected output."""
+
+    charging_simulator.compute_charging_schedule(
+        charging_strategies=["terminal_specific_random"],
+        charge_probability_terminal=1.0,
+        specific_terminal_ids=["0113LMD"]
+    )
+
+    actual = charging_simulator.compute_charging_load_curve(time_step_s=60).reset_index(drop=True)
+
+    expected = pd.read_csv("tests/expected/charging_load_curve_terminal_specific_random.csv")
+
+    pd.testing.assert_frame_equal(
+        actual,
+        expected,
+        rtol=1e-12,
+        atol=1e-12,
+        check_dtype=False
+    )
