@@ -119,7 +119,7 @@ charging.compute_charging_load_curve(time_step_s=60).to_csv("path/to/output/load
 
 ## Examples
 
-Below are selected outputs derived from a case study of Lusaka’s minibus taxi fleet (detailed in this [report](docs/cases/GTFS4EV_Lusaka_report_open.pdf)). These examples illustrate typical analyses such as:
+Below are selected outputs derived from a case study of Lusaka’s minibus taxi fleet (detailed in this [report](docs/cases/GTFS4EV_Lusaka_report_open.pdf)). The underlying GTFS data used for this case study are available from the [DigitalTransport4Africa gitlab repository for Lusaka](https://gitlab.com/digitaltransport/data/africa/lusaka). These examples illustrate typical analyses such as:
 
  - Characterization of the existing minibus network
  - Analysis of fleet operation
