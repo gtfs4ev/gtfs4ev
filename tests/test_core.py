@@ -551,7 +551,7 @@ def charging_simulator(charging_powers):
         energy_consumption_kWh_per_km=1.2,
         security_driving_distance_km=10.0,
         charging_powers_kW={
-            "depot": [[22, 0.5]],     
+            "depot": [[22, 1.0]],     
             "terminal": [[50, 1.0]],            
             "stop": [[50, 1.0]]
         }
