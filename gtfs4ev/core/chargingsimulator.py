@@ -331,7 +331,7 @@ class ChargingSimulator:
             # second part: midnight → original end
             wrap2 = wrap.copy()
             wrap2['start_sec'] = 0
-            wrap2['end_sec']   = sessions.loc[over_midnight, 'end_sec'].values + 86400 - wrap.loc[over_midnight, 'start_sec'].values
+            wrap2['end_sec']   = sessions.loc[over_midnight, 'end_sec'].values
             sessions.loc[over_midnight, 'end_sec'] = 86400
             sessions = pd.concat([sessions, wrap2], ignore_index=True)
 
