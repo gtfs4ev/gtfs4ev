@@ -97,7 +97,6 @@ def gtfs_time_to_seconds(time_str: str) -> int:
 
     return hours * 3600 + minutes * 60 + seconds
 
-
 def seconds_to_gtfs_time(total_seconds: int) -> str:
     """
     Converts service-day seconds to a GTFS time string 
@@ -116,3 +115,21 @@ def seconds_to_gtfs_time(total_seconds: int) -> str:
     minutes, seconds = divmod(remainder, 60)
 
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+def generate_shape_from_stops(stop_locations):
+    """
+    Generates an approximate LineString from ordered stop geometries.
+    Consecutive identical stops are omitted. 
+    """
+    coordinates = []
+    for point in stop_locations:
+        if not isinstance(point, Point) or point.is_empty:
+            raise ValueError("All stop locations must be valid Point geometries.")
+        coordinate = (point.x, point.y)
+        if not coordinates or coordinate != coordinates[-1]:
+            coordinates.append(coordinate)
+
+    if len(set(coordinates)) < 2:
+        raise ValueError("At least two distinct stop locations are required.")
+
+    return LineString(coordinates)

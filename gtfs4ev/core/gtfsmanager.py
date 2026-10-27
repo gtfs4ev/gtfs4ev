@@ -83,9 +83,14 @@ class GTFSManager:
         self._agency = self._load_csv("agency.txt", 
                                       columns=['agency_id', 'agency_name', 'agency_url', 'agency_timezone'],
                                       dtypes={col: str for col in ['agency_id', 'agency_name', 'agency_url', 'agency_timezone']})
+        # shape_id is optional in GTFS when shapes.txt is not provided.
+        trip_columns = ['route_id', 'service_id', 'trip_id', 'shape_id']
+        available_columns = pd.read_csv(self.gtfs_datafolder / "trips.txt", nrows=0).columns
         self._trips = self._load_csv("trips.txt",
-                                     columns=['route_id', 'service_id', 'trip_id', 'shape_id'],
-                                     dtypes={col: str for col in ['route_id', 'service_id', 'trip_id', 'shape_id']})
+                                     columns=[col for col in trip_columns if col in available_columns],
+                                     dtypes={col: str for col in trip_columns})
+        if 'shape_id' not in self._trips.columns:
+            self._trips['shape_id'] = None
         self._routes = self._load_csv("routes.txt", 
                                       columns=['route_id', 'agency_id', 'route_short_name', 'route_long_name'],
                                       dtypes={col: str for col in ['route_id', 'agency_id', 'route_short_name', 'route_long_name']})
@@ -144,14 +149,14 @@ class GTFSManager:
         """
         abs_path = Path(abs_path)  # Convert string to Path object
         required_files = ['agency.txt', 'routes.txt', 'stop_times.txt', 'calendar.txt',
-                          'frequencies.txt', 'shapes.txt', 'stops.txt', 'trips.txt']
+                          'frequencies.txt', 'stops.txt', 'trips.txt']
         if not abs_path.is_dir():
             raise FileNotFoundError(f"ERROR \t Unable to find folder: /{abs_folder}")
         for file_name in required_files:
             if not (abs_path / file_name).exists():
                 print(f"ERROR \t Required file '{file_name}' is missing")
         for file_name in os.listdir(abs_path):
-            if file_name not in required_files:
+            if file_name not in required_files and file_name != 'shapes.txt':
                 print(f"INFO \t The data folder contains a GTFS file that is not required: '{file_name}'.")
         self._gtfs_datafolder = abs_path
 
@@ -1671,18 +1676,57 @@ class GTFSManager:
         return gdf
 
     def _load_shapes(self):
-        """Loads and returns the shapes GeoDataFrame as LineStrings."""
+        """Load GTFS shapes and generate missing trip geometries from ordered stops."""
         file_path = self.gtfs_datafolder / "shapes.txt"
-        try:
-            df = pd.read_csv(file_path, usecols=['shape_id', 'shape_pt_lat', 'shape_pt_lon'],
-                             dtype={'shape_id': str, 'shape_pt_lat': float, 'shape_pt_lon': float})
-            grouped = (
-                df.groupby('shape_id')[['shape_pt_lon', 'shape_pt_lat']]
-                  .apply(lambda x: LineString(zip(x['shape_pt_lon'], x['shape_pt_lat'])))
-            )
-            gdf = gpd.GeoDataFrame(geometry=grouped, crs="EPSG:4326").reset_index()
-        except Exception as e:
-            raise ValueError("ERROR \t Problem creating GeoDataFrame from shapes.txt.") from e
+        if file_path.exists() and file_path.stat().st_size > 0:
+            try:
+                df = pd.read_csv(file_path, usecols=['shape_id', 'shape_pt_lat', 'shape_pt_lon'],
+                                 dtype={'shape_id': str, 'shape_pt_lat': float, 'shape_pt_lon': float})
+                if not df.empty:
+                    grouped = (
+                        df.groupby('shape_id')[['shape_pt_lon', 'shape_pt_lat']]
+                          .apply(lambda x: LineString(zip(x['shape_pt_lon'], x['shape_pt_lat'])))
+                    )
+                    gdf = gpd.GeoDataFrame(geometry=grouped, crs="EPSG:4326").reset_index()
+                else:
+                    gdf = gpd.GeoDataFrame(columns=['shape_id', 'geometry'], geometry='geometry', crs="EPSG:4326")
+            except pd.errors.EmptyDataError:
+                gdf = gpd.GeoDataFrame(columns=['shape_id', 'geometry'], geometry='geometry', crs="EPSG:4326")
+            except Exception as e:
+                raise ValueError("ERROR \t Problem creating GeoDataFrame from shapes.txt.") from e
+        else:
+            gdf = gpd.GeoDataFrame(columns=['shape_id', 'geometry'], geometry='geometry', crs="EPSG:4326")
+
+        # Generate geometries only for trips without an existing shape.
+        missing = self.trips['shape_id'].isna() | ~self.trips['shape_id'].isin(gdf['shape_id'])
+        if missing.any():
+            stop_locations = self.stop_times.merge(self.stops[['stop_id', 'geometry']], on='stop_id', how='left')
+            generated = []
+            existing_ids = set(gdf['shape_id'].dropna()) | set(self.trips['shape_id'].dropna())
+
+            for idx, trip in self.trips[missing].iterrows():
+                trip_stops = stop_locations[stop_locations['trip_id'] == trip['trip_id']].sort_values('stop_sequence')
+                points = trip_stops['geometry'].tolist()
+                if any(not isinstance(point, Point) or point.is_empty for point in points):
+                    raise ValueError(f"ERROR \t Cannot generate shape for trip '{trip['trip_id']}': missing stop coordinates.")
+
+                try:
+                    geometry = hlp.generate_shape_from_stops(points)
+                except ValueError as e:
+                    raise ValueError(f"ERROR \t Cannot generate shape for trip '{trip['trip_id']}': {e}") from e
+
+                shape_id = f"generated_{trip['trip_id']}"
+                while shape_id in existing_ids:
+                    shape_id += "_"
+                existing_ids.add(shape_id)
+                self._trips.at[idx, 'shape_id'] = shape_id
+                generated.append({'shape_id': shape_id, 'geometry': geometry})
+
+            generated_gdf = gpd.GeoDataFrame(generated, geometry='geometry', crs="EPSG:4326")
+            gdf = pd.concat([gdf, generated_gdf], ignore_index=True)
+            gdf = gpd.GeoDataFrame(gdf, geometry='geometry', crs="EPSG:4326")
+            print(f"ALERT \t Missing shapes.txt or shapes for some trips. Generated approximate shapes from stop coordinates for {len(generated)} trips.")
+
         return gdf
 
     def _clean_agency(self):

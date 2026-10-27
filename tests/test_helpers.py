@@ -13,8 +13,8 @@ from gtfs4ev.utils.helpers import (
     mask_within_radius,
     gtfs_time_to_seconds,
     seconds_to_gtfs_time,
+    generate_shape_from_stops,
 )
-
 
 # -------------------------------------------------------------------
 # check_dataframe
@@ -212,3 +212,18 @@ def test_gtfs_overnight_duration():
     arrival = gtfs_time_to_seconds("27:00:00")
 
     assert arrival - departure == 12600
+
+# -------------------------------------------------------------------
+# generate_shape_from_stops
+# -------------------------------------------------------------------
+
+def test_generate_shape_from_stops_preserves_order():
+    points = [Point(0, 0), Point(1, 0), Point(1, 0), Point(1, 1)]
+    shape = generate_shape_from_stops(points)
+    assert list(shape.coords) == [(0, 0), (1, 0), (1, 1)]
+
+
+@pytest.mark.parametrize("points", [[Point(0, 0)], [Point(0, 0), Point(0, 0)], [Point(0, 0), None]])
+def test_generate_shape_from_stops_rejects_invalid_points(points):
+    with pytest.raises(ValueError):
+        generate_shape_from_stops(points)

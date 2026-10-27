@@ -1,4 +1,5 @@
 import pytest
+import shutil
 import numpy as np
 import pandas as pd
 import datetime
@@ -248,7 +249,6 @@ def test_stop_statistics_keys(manager):
 
     assert expected_keys.issubset(stats.keys())
 
-
 # Accessors
 
 def test_get_shape_returns_linestring(manager):
@@ -305,6 +305,55 @@ def test_export_to_csv(tmp_path, manager):
 def test_invalid_trip_id_raises(manager):
     with pytest.raises(IndexError):
         manager.trip_length_km("INVALID_TRIP_ID")
+
+# Missing shapes.txt
+
+@pytest.mark.parametrize("shapes_content", [None, "", "shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence\n"])
+def test_missing_or_empty_shapes_generate_trip_geometries(tmp_path, shapes_content):
+    """Trips remain simulation-ready when shapes.txt is missing or empty."""
+    source = "examples/data/sample_GTFS"
+    feed = tmp_path / "gtfs"
+    shutil.copytree(source, feed)
+
+    shapes_file = feed / "shapes.txt"
+    if shapes_content is None:
+        shapes_file.unlink()
+    else:
+        shapes_file.write_text(shapes_content)
+
+    gtfs = GTFSManager(str(feed))
+
+    assert gtfs.check_all()
+    assert len(gtfs.shapes) == len(gtfs.trips)
+    for trip_id in gtfs.trips["trip_id"]:
+        shape = gtfs.get_shape(trip_id)
+        assert isinstance(shape, LineString)
+        assert shape.length > 0
+        assert gtfs.trip_length_km(trip_id) > 0
+
+
+def test_missing_shape_id_column(tmp_path):
+    """The shape_id column is optional when trip geometries are generated."""
+    feed = tmp_path / "gtfs"
+    shutil.copytree("examples/data/sample_GTFS", feed)
+    (feed / "shapes.txt").unlink()
+
+    trips = pd.read_csv(feed / "trips.txt", dtype=str)
+    trips.drop(columns="shape_id", errors="ignore").to_csv(feed / "trips.txt", index=False)
+
+    gtfs = GTFSManager(str(feed))
+
+    assert gtfs.check_all()
+    assert gtfs.trips["shape_id"].notna().all()
+    assert all(isinstance(gtfs.get_shape(trip_id), LineString) for trip_id in gtfs.trips["trip_id"])
+
+
+def test_existing_shapes_are_preserved():
+    """Loading a valid shapes.txt file must not replace its geometries."""
+    gtfs = GTFSManager("examples/data/sample_GTFS")
+
+    assert gtfs.check_all()
+    assert not gtfs.trips["shape_id"].str.startswith("generated_").any()
 
 # -------------------------------------------------------------------------------
 # FleetSimulator Tests
