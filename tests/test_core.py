@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
+import datetime
 from shapely.geometry import LineString, Point
 
 from gtfs4ev.core.gtfsmanager import GTFSManager
@@ -674,6 +675,27 @@ def test_non_wrapping_charge_keeps_its_profile(time_step_s):
     np.testing.assert_array_equal(curve["depot"], expected)
     assert curve["depot"].sum() * time_step_s / 3600 == pytest.approx(120)
 
+# GTFS extended charging times
+
+def test_charging_load_curve_extended_times():
+    """Charging across midnight must preserve energy and daily time bins."""
+    simulator = ChargingSimulator.__new__(ChargingSimulator)
+
+    simulator._charging_schedule_pervehicle = pd.DataFrame([{
+        'charging_sequence': [{
+            'start_time': '23:00:00',
+            'end_time': '25:00:00',
+            'location': 'depot',
+            'power': 60
+        }]
+    }])
+
+    load = simulator.compute_charging_load_curve(time_step_s=3600)
+
+    assert load.loc[datetime.time(23, 0), 'depot'] == 60
+    assert load.loc[datetime.time(0, 0), 'depot'] == 60
+    assert load.loc[datetime.time(1, 0), 'depot'] == 0
+    assert load['depot'].sum() == 120
 
 # Built-in charging strategies starting from a fresh GTFS4EV state
 

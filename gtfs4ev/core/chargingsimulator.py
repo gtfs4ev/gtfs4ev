@@ -11,6 +11,7 @@ from folium.plugins import HeatMap
 import branca.colormap as cm
 
 from gtfs4ev.core.fleetsimulator import FleetSimulator
+from gtfs4ev.utils import helpers as hlp
 
 class ChargingSimulator:
     """
@@ -314,26 +315,26 @@ class ChargingSimulator:
             all_sessions.extend(row['charging_sequence'])
         sessions = pd.DataFrame(all_sessions)
 
-        # 2) Convert HH:MM:SS → seconds since midnight
-        def to_sec(hms: str) -> int:
-            h, m, s = map(int, hms.split(':'))
-            return h * 3600 + m * 60 + s
+        # 2) Convert GTFS service times to seconds, preserving extended hours
+        sessions['start_sec'] = sessions['start_time'].map(hlp.gtfs_time_to_seconds)
+        sessions['end_sec']   = sessions['end_time'].map(hlp.gtfs_time_to_seconds)
 
-        sessions['start_sec'] = sessions['start_time'].map(to_sec)
-        sessions['end_sec']   = sessions['end_time'].  map(to_sec)
-
-        # 2a) Split sessions that cross midnight
-        over_midnight = sessions['end_sec'] < sessions['start_sec']
-        if over_midnight.any():
-            wrap = sessions[over_midnight].copy()
-            # first part: start → midnight
-            wrap['end_sec'] = 86400
-            # second part: midnight → original end
-            wrap2 = wrap.copy()
-            wrap2['start_sec'] = 0
-            wrap2['end_sec']   = sessions.loc[over_midnight, 'end_sec'].values
-            sessions.loc[over_midnight, 'end_sec'] = 86400
-            sessions = pd.concat([sessions, wrap2], ignore_index=True)
+        # 2a) Fold charging sessions into the existing 24-hour daily profile
+        daily_sessions = []
+        for _, session in sessions.iterrows():
+            start_sec = int(session['start_sec'])
+            end_sec = int(session['end_sec'])
+            if end_sec < start_sec:
+                end_sec += 86400  # Legacy midnight-crossing interval
+            while start_sec < end_sec:
+                day_end = (start_sec // 86400 + 1) * 86400
+                segment_end = min(end_sec, day_end)
+                segment = session.copy()
+                segment['start_sec'] = start_sec % 86400
+                segment['end_sec'] = 86400 if segment_end == day_end else segment_end % 86400
+                daily_sessions.append(segment)
+                start_sec = segment_end
+        sessions = pd.DataFrame(daily_sessions, columns=sessions.columns)
 
         # 3) Prepare time axis and predefined location types
         full_day_sec = np.arange(0, 86400, time_step_s)
@@ -516,16 +517,16 @@ class ChargingSimulator:
                 - "distance_km" (float): Segment distance in kilometers.
                 - "stop_id" (optional): Stop identifier or None if not applicable.
         """
-        start_time = datetime.strptime(seq["start_time"], "%H:%M:%S")
-        end_time = datetime.strptime(seq["end_time"], "%H:%M:%S")
+        start_time = hlp.gtfs_time_to_seconds(seq["start_time"])
+        end_time = hlp.gtfs_time_to_seconds(seq["end_time"])
         if end_time < start_time:
-            end_time += timedelta(days=1)
-        duration_sec = int((end_time - start_time).total_seconds())
+            end_time += 86400  # Legacy midnight-crossing interval
+        duration_sec = end_time - start_time
 
         if not seq.get("operating", True):
             return [{
-                "start_time": start_time.strftime("%H:%M:%S"),
-                "end_time": end_time.strftime("%H:%M:%S"),
+                "start_time": hlp.seconds_to_gtfs_time(start_time),
+                "end_time": hlp.seconds_to_gtfs_time(end_time),
                 "status": "not_operating",
                 "duration_h": duration_sec / 3600,
                 "distance_km": 0.0,
@@ -545,17 +546,17 @@ class ChargingSimulator:
             segment_start = max(base_cumulative[i], abs_start_offset)
             segment_end = min(base_cumulative[i + 1], abs_end_offset)
 
-            effective_start = start_time + timedelta(seconds=segment_start - abs_start_offset)
-            effective_end = start_time + timedelta(seconds=segment_end - abs_start_offset)
-            event_duration = (effective_end - effective_start).total_seconds()
+            effective_start = start_time + int(segment_start - abs_start_offset)
+            effective_end = start_time + int(segment_end - abs_start_offset)
+            event_duration = effective_end - effective_start
 
             base_duration = base_durations[i]
             base_distance = base_distances[i]
             distance_km = base_distance * (event_duration / base_duration) if base_duration > 0 else 0.0
 
             segments.append({
-                "start_time": effective_start.strftime("%H:%M:%S"),
-                "end_time": effective_end.strftime("%H:%M:%S"),
+                "start_time": hlp.seconds_to_gtfs_time(effective_start),
+                "end_time": hlp.seconds_to_gtfs_time(effective_end),
                 "status": base_statuses[i],
                 "duration_h": event_duration / 3600,
                 "distance_km": distance_km,
@@ -607,8 +608,10 @@ class ChargingSimulator:
                     "Charging strategies must be either string identifiers or callable functions."
                 )
             for event in events:
-                start = datetime.strptime(event["start_time"], "%H:%M:%S")
-                end = datetime.strptime(event["end_time"], "%H:%M:%S")
+                start = hlp.gtfs_time_to_seconds(event["start_time"])
+                end = hlp.gtfs_time_to_seconds(event["end_time"])
+                if end < start:
+                    end += 86400
                 if any(not (end <= s or start >= e) for s, e in added_intervals):
                     continue
                 charging_events.append(event)
@@ -618,7 +621,7 @@ class ChargingSimulator:
             remaining = total_need - charged_energy
 
         # Compute minimum required capacity and associated SOC at the start of the day
-        charging_events.sort(key=lambda e: e["start_time"])
+        charging_events.sort(key=lambda e: hlp.gtfs_time_to_seconds(e["start_time"]))
         min_capacity, start_end_soc_kWh = self._find_minimum_battery_capacity_and_start_capacity(travel_sequence, charging_events)
 
         # Check for success
@@ -663,7 +666,7 @@ class ChargingSimulator:
         # Random travel time offset
         mean, std_dev = depot_travel_time_min
         travel_minutes = max(0, round(np.random.normal(mean, std_dev)))
-        delay = timedelta(minutes=travel_minutes)
+        delay = travel_minutes * 60
 
         # Helper to decide probabilistic charging
         def can_charge(prob):
@@ -674,11 +677,11 @@ class ChargingSimulator:
             power = self._get_random_charging_power(location)
             energy = min(duration_h * power, remaining_need)
             actual_duration_h = energy / power
-            actual_end = datetime.strptime(start, "%H:%M:%S") + timedelta(hours=actual_duration_h)
+            actual_end = hlp.gtfs_time_to_seconds(start) + round(actual_duration_h * 3600)
 
             return {
                 "start_time": start,
-                "end_time": actual_end.strftime("%H:%M:%S"),
+                "end_time": hlp.seconds_to_gtfs_time(actual_end),
                 "location": location,
                 "stop_id": stop_id,
                 "power": power,
@@ -747,15 +750,15 @@ class ChargingSimulator:
                 if idx in (0, len(travel_sequence) - 1):
                     continue  # Skip first/last event
                 if event["status"] == "not_operating" and remaining_need > 0:
-                    start_dt = datetime.strptime(event["start_time"], "%H:%M:%S") + delay
-                    end_dt = datetime.strptime(event["end_time"], "%H:%M:%S") - delay
+                    start_dt = hlp.gtfs_time_to_seconds(event["start_time"]) + delay
+                    end_dt = hlp.gtfs_time_to_seconds(event["end_time"]) - delay
 
                     if end_dt <= start_dt:
                         continue  # Ignore negative or zero-length windows
 
-                    duration_h = (end_dt - start_dt).total_seconds() / 3600
+                    duration_h = (end_dt - start_dt) / 3600
                     charge_event, charged = compute_charging_event(
-                        start_dt.strftime("%H:%M:%S"),
+                        hlp.seconds_to_gtfs_time(start_dt),
                         duration_h,
                         "depot"
                     )
@@ -773,17 +776,17 @@ class ChargingSimulator:
             if remaining_need > 0:
                 last_event = travel_sequence[-1]
 
-                start_dt = datetime.strptime(last_event["start_time"], "%H:%M:%S") + delay
-                end_dt = datetime.strptime(last_event["end_time"], "%H:%M:%S")
+                start_dt = hlp.gtfs_time_to_seconds(last_event["start_time"]) + delay
+                end_dt = hlp.gtfs_time_to_seconds(last_event["end_time"])
 
-                duration_h = (end_dt - start_dt).total_seconds() / 3600
+                duration_h = (end_dt - start_dt) / 3600
                 if duration_h > 0:
                     energy = min(duration_h * power, remaining_need)
-                    duration_needed = timedelta(hours=energy / power)
+                    duration_needed = round(energy / power * 3600)
 
                     charging_events.append({
-                        "start_time": start_dt.strftime("%H:%M:%S"),
-                        "end_time": (start_dt + duration_needed).strftime("%H:%M:%S"),
+                        "start_time": hlp.seconds_to_gtfs_time(start_dt),
+                        "end_time": hlp.seconds_to_gtfs_time(start_dt + duration_needed),
                         "location": "depot",
                         "power": power,
                         "energy_charged_kWh": energy
@@ -793,17 +796,17 @@ class ChargingSimulator:
             # Beginning-of-day charging: first event
             if remaining_need > 0:
                 first_event = travel_sequence[0]
-                start_dt = datetime.strptime(first_event["start_time"], "%H:%M:%S")
-                end_dt = datetime.strptime(first_event["end_time"], "%H:%M:%S") - delay
+                start_dt = hlp.gtfs_time_to_seconds(first_event["start_time"])
+                end_dt = hlp.gtfs_time_to_seconds(first_event["end_time"]) - delay
 
-                duration_h = (end_dt - start_dt).total_seconds() / 3600
+                duration_h = (end_dt - start_dt) / 3600
                 if duration_h > 0:
                     energy = min(duration_h * power, remaining_need)
-                    duration_needed = timedelta(hours=energy / power)
+                    duration_needed = round(energy / power * 3600)
 
                     charging_events.append({
-                        "start_time": start_dt.strftime("%H:%M:%S"),
-                        "end_time": (start_dt + duration_needed).strftime("%H:%M:%S"),
+                        "start_time": hlp.seconds_to_gtfs_time(start_dt),
+                        "end_time": hlp.seconds_to_gtfs_time(start_dt + duration_needed),
                         "location": "depot",
                         "power": power,
                         "energy_charged_kWh": energy
@@ -821,7 +824,7 @@ class ChargingSimulator:
                   f"despite a remaining need of {charging_need_kWh:.2f} kWh.")
 
         # Ensure chronological order of events
-        charging_events.sort(key=lambda e: e["start_time"])
+        charging_events.sort(key=lambda e: hlp.gtfs_time_to_seconds(e["start_time"]))
 
         return charging_events
 
@@ -859,9 +862,11 @@ class ChargingSimulator:
                     stop_sessions[stop_id] = []
                     stop_locations[stop_id] = location
 
-                # Convert session start and end times to datetime objects
-                start = datetime.strptime(session['start_time'], '%H:%M:%S')
-                end = datetime.strptime(session['end_time'], '%H:%M:%S')
+                # Convert GTFS service times to seconds
+                start = hlp.gtfs_time_to_seconds(session['start_time'])
+                end = hlp.gtfs_time_to_seconds(session['end_time'])
+                if end < start:
+                    end += 86400
 
                 # Store session details for aggregation
                 stop_sessions[stop_id].append({
@@ -896,14 +901,14 @@ class ChargingSimulator:
 
                 vehicle_count = len(active_sessions)
                 total_power = sum(s['power'] for s in active_sessions)
-                duration_h = (t_end - t_start).total_seconds() / 3600  # Convert duration to hours
+                duration_h = (t_end - t_start) / 3600  # Convert duration to hours
                 energy_kWh = round(total_power * duration_h, 6)
 
                 # Add to the charging sequence if there is power being drawn
                 if total_power > 0:
                     charging_sequence.append({
-                        'start_time': t_start.strftime('%H:%M:%S'),
-                        'end_time': t_end.strftime('%H:%M:%S'),
+                        'start_time': hlp.seconds_to_gtfs_time(t_start),
+                        'end_time': hlp.seconds_to_gtfs_time(t_end),
                         'power': total_power,
                         'energy_kWh': energy_kWh,
                         'vehicle_count': vehicle_count
@@ -969,7 +974,7 @@ class ChargingSimulator:
         for event in travel_sequence:
             if event["status"] == "travelling":
                 energy = -event["distance_km"] * energy_consumption_kWh_per_km
-                t = datetime.strptime(event["start_time"], "%H:%M:%S")
+                t = hlp.gtfs_time_to_seconds(event["start_time"])
                 events.append((t, energy))
                 travel_times.append(t)
 
@@ -979,7 +984,7 @@ class ChargingSimulator:
         charge_events = []
         for event in charging_events:
             energy = event["energy_charged_kWh"]
-            t = datetime.strptime(event["start_time"], "%H:%M:%S")
+            t = hlp.gtfs_time_to_seconds(event["start_time"])
             charge_events.append((t, energy))
 
         # If there is a charging event before the first travel → move it to the end
@@ -988,7 +993,7 @@ class ChargingSimulator:
             after_first_travel  = [e for e in charge_events if e[0] >= first_travel_time]
 
             # Place "before first travel" charges at the end of the day (+24h shift)
-            shifted = [(e[0] + timedelta(days=1), e[1]) for e in before_first_travel]
+            shifted = [(e[0] + 86400, e[1]) for e in before_first_travel]
 
             events.extend(after_first_travel + shifted)
         else:
