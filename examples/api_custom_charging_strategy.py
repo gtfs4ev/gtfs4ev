@@ -1,7 +1,8 @@
+
 # coding: utf-8
 
 """
-This script demonstrates the definition and use of user-defined custom 
+This script demonstrates the definition and use of a user-defined custom
 charging strategy.
 
 About building custom strategies
@@ -25,7 +26,7 @@ A custom charging strategy must:
   Example of a travel_sequence element:
     {
         "status": "at_terminal",
-        "start_time": "16:45:00",
+        "start_time": "25:45:00",
         "duration_h": 0.25,
         "stop_id": "STOP_123"
     }
@@ -34,13 +35,17 @@ A custom charging strategy must:
 
   Example of a charging event:
     {
-        "start_time": "16:45:00",
-        "end_time": "17:00:00",
+        "start_time": "25:45:00",
+        "end_time": "26:00:00",
         "location": "terminal",
         "stop_id": "STOP_123",
         "power": 150,
         "energy_charged_kWh": 37.5
     }
+
+GTFS4EV uses GTFS service-day times, which may exceed 24:00:00.
+Custom strategies should use the GTFS time conversion helpers instead
+of datetime.strptime() and strftime() to preserve extended times.
 
 This design allows users to implement arbitrary charging behaviors
 (time-based, location-based, stochastic, PV-aware, etc.).
@@ -58,11 +63,11 @@ Expected input/output structure:
 """
 
 import os
-from datetime import datetime, timedelta
 
 from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.core.fleetsimulator import FleetSimulator
 from gtfs4ev.core.chargingsimulator import ChargingSimulator
+from gtfs4ev.utils import helpers as hlp
 
 # Configuration
 # ------------------------------------------------------------------------------
@@ -74,7 +79,7 @@ OUTPUT_FOLDER = "results/api_custom_charging_strategy"
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # ------------------------------------------------------------------------------
-# 1. Load data and run fleet simulation 
+# 1. Load data and run fleet simulation
 # ------------------------------------------------------------------------------
 
 gtfs = GTFSManager(gtfs_datafolder=GTFS_DATA_FOLDER)
@@ -121,11 +126,11 @@ def evening_terminal_charging(
         if event["status"] != "at_terminal":
             continue
 
-        # Convert the event start time to a datetime object
-        start_dt = datetime.strptime(event["start_time"], "%H:%M:%S")
+        # Convert GTFS service time to seconds since the service-day origin
+        start_sec = hlp.gtfs_time_to_seconds(event["start_time"])
 
         # Skip terminal stops occurring before the allowed charging hour
-        if start_dt.hour < min_hour:
+        if start_sec < min_hour * 3600:
             continue
 
         # Retrieve a charging power (kW) based on terminal charger availability
@@ -142,12 +147,12 @@ def evening_terminal_charging(
         energy = min(max_energy, remaining)
 
         # Compute the end time of the charging event
-        end_dt = start_dt + timedelta(hours=energy / power)
+        end_sec = start_sec + round(energy / power * 3600)
 
         # Append the charging event to the result list
         charging_events.append({
-            "start_time": start_dt.strftime("%H:%M:%S"),
-            "end_time": end_dt.strftime("%H:%M:%S"),
+            "start_time": event["start_time"],
+            "end_time": hlp.seconds_to_gtfs_time(end_sec),
             "location": "terminal",
             "stop_id": event["stop_id"],
             "power": power,
@@ -177,18 +182,24 @@ charging = ChargingSimulator(
 charging.compute_charging_schedule(
     charging_strategies=[
         evening_terminal_charging,  # Custom user-defined strategy
-        "depot_night"             # Built-in overnight depot charging
+        "depot_night"               # Built-in overnight depot charging
     ],
     depot_travel_time_min=[30, 15]
 )
 
 # ------------------------------------------------------------------------------
-# 3. Results export 
+# 3. Results export
 # ------------------------------------------------------------------------------
 
 # Export the charging schedule per vehicle
-charging.charging_schedule_pervehicle.to_csv(f"{OUTPUT_FOLDER}/charging_schedules_per_vehicle.csv", index=False)
+charging.charging_schedule_pervehicle.to_csv(
+    f"{OUTPUT_FOLDER}/charging_schedules_per_vehicle.csv",
+    index=False
+)
 
 # Compute and export the aggregated charging load curve
 load_curve = charging.compute_charging_load_curve(time_step_s=60)
-load_curve.to_csv(f"{OUTPUT_FOLDER}/charging_load_curve.csv", index=False)
+load_curve.to_csv(
+    f"{OUTPUT_FOLDER}/charging_load_curve.csv",
+    index=False
+)
