@@ -36,7 +36,7 @@ class TripSimulator:
 
     Notes:
         - Only GTFS trips with valid `frequencies.txt` entries are supported.
-        - All times are assumed to refer to a single service day (00:00–23:59).
+        - Times refer to one independent GTFS service day and may exceed 24:00:00.
         - Shapes are assumed to be spatially consistent with stop locations.
 
     Attributes:
@@ -173,10 +173,10 @@ class TripSimulator:
         # --- Step 1: Filter and sort stop times for the trip ---
         # Use query to filter and copy the dataframe
         stop_times = self.gtfs_manager.stop_times.query("trip_id == @self.trip_id").copy()
-        stop_times.sort_values("arrival_time", inplace=True)
-        first_arrival = stop_times.iloc[0]["arrival_time"]
-        stop_times["arrival_offset"] = (stop_times["arrival_time"] - first_arrival).dt.total_seconds()
-        stop_times["departure_offset"] = (stop_times["departure_time"] - first_arrival).dt.total_seconds()
+        stop_times.sort_values("stop_sequence", inplace=True)
+        first_arrival = hlp.gtfs_time_to_seconds(stop_times.iloc[0]["arrival_time"])
+        stop_times["arrival_offset"] = stop_times["arrival_time"].map(hlp.gtfs_time_to_seconds) - first_arrival
+        stop_times["departure_offset"] = stop_times["departure_time"].map(hlp.gtfs_time_to_seconds) - first_arrival
 
         # --- Step 2: Get stop geometries from a pre-cached dictionary ---
         # If not already cached on the gtfs_manager, do it once and store it.
@@ -353,8 +353,8 @@ class TripSimulator:
 
         for _, freq in trip_freq.iterrows():
             headway = freq['headway_secs']
-            freq_start_sec = (freq['start_time'].hour * 3600 + freq['start_time'].minute * 60 + freq['start_time'].second)
-            freq_end_sec = (freq['end_time'].hour * 3600 + freq['end_time'].minute * 60 + freq['end_time'].second)
+            freq_start_sec = hlp.gtfs_time_to_seconds(freq['start_time'])
+            freq_end_sec = hlp.gtfs_time_to_seconds(freq['end_time'])
 
             vehicles_in_operation = min(num_vehicles, max(1, round(trip_duration / headway)))
             vehicle_indices = np.arange(vehicles_in_operation)
@@ -404,9 +404,9 @@ class TripSimulator:
                     clipped_duration = clipped_end - clipped_start
                     repetition_fraction = clipped_duration / trip_duration
 
-                    # Convert start/end to HH:MM:SS
-                    start_str = pd.to_datetime(clipped_start, unit="s").strftime("%H:%M:%S")
-                    end_str = pd.to_datetime(clipped_end, unit="s").strftime("%H:%M:%S")
+                    # Preserve GTFS service-day hours beyond midnight
+                    start_str = hlp.seconds_to_gtfs_time(int(clipped_start))
+                    end_str = hlp.seconds_to_gtfs_time(int(clipped_end))
 
                     # Iterate over the sequence of events for this trip
                     for event in base_seq:
@@ -436,109 +436,44 @@ class TripSimulator:
 
                     repetition_start += trip_duration
 
-        # Fill the gaps with a vehicle that is not operation
-
+        # Fill non-operating gaps on the independent service-day timeline
         fleet_result = []
+        latest_end_sec = max(
+            [86400] + [hlp.gtfs_time_to_seconds(freq_end) for freq_end in trip_freq['end_time']]
+            + [hlp.gtfs_time_to_seconds(seq['end_time'])
+               for record in vehicle_records.values() for seq in record['travel_sequences']]
+        )
 
         for record in vehicle_records.values():
             filled_sequences = []
-            prev_end = 0  # seconds since midnight
+            prev_end = 0  # seconds since the GTFS service-day origin
 
             for seq in record["travel_sequences"]:
-                start_dt = datetime.strptime(seq["start_time"], "%H:%M:%S")
-                end_dt = datetime.strptime(seq["end_time"], "%H:%M:%S")
-
-                start_sec = start_dt.hour * 3600 + start_dt.minute * 60 + start_dt.second
-                end_sec = end_dt.hour * 3600 + end_dt.minute * 60 + end_dt.second
+                start_sec = hlp.gtfs_time_to_seconds(seq["start_time"])
+                end_sec = hlp.gtfs_time_to_seconds(seq["end_time"])
 
                 if start_sec > prev_end:
-                    start_str = f"{prev_end // 3600:02}:{(prev_end % 3600) // 60:02}:{prev_end % 60:02}"
-                    end_str = f"{start_sec // 3600:02}:{(start_sec % 3600) // 60:02}:{start_sec % 60:02}"
                     filled_sequences.append({
-                        "start_time": start_str,
-                        "end_time": end_str,
+                        "start_time": hlp.seconds_to_gtfs_time(prev_end),
+                        "end_time": hlp.seconds_to_gtfs_time(start_sec),
                         "offset_from_start": 0,
                         "operating": False
                     })
 
                 seq["operating"] = True
                 filled_sequences.append(seq)
-                prev_end = end_sec
+                prev_end = max(prev_end, end_sec)
 
-            if prev_end < 86399:
-                start_str = f"{prev_end // 3600:02}:{(prev_end % 3600) // 60:02}:{prev_end % 60:02}"
-                end_str = "23:59:59"  # explicitly clamp to end of day
+            if prev_end < latest_end_sec:
                 filled_sequences.append({
-                    "start_time": start_str,
-                    "end_time": end_str,
+                    "start_time": hlp.seconds_to_gtfs_time(prev_end),
+                    "end_time": hlp.seconds_to_gtfs_time(latest_end_sec),
                     "offset_from_start": 0,
                     "operating": False
                 })
 
             record["travel_sequences"] = filled_sequences
             fleet_result.append(record)
-
-        # Make sur the latest not operating session starts at the same hour for every vehicle (end of operating hours)
-
-        # Step 1: Find the latest start time among the last non-operating sessions
-        last_start_seconds = []
-
-        latest_end_time = self.gtfs_manager.frequencies['end_time'].max()
-        latest_end_sec = latest_end_time.hour * 3600 + latest_end_time.minute * 60 + latest_end_time.second
-        latest_start_str = f"{latest_end_sec // 3600:02}:{(latest_end_sec % 3600) // 60:02}:{latest_end_sec % 60:02}"
-
-        for record in vehicle_records.values():
-            sequences = record["travel_sequences"]
-            if not sequences:
-                continue
-
-            last_seq = sequences[-1]
-            if not last_seq.get("operating", True):
-                dt = datetime.strptime(last_seq["start_time"], "%H:%M:%S")
-                this_start_sec = dt.hour * 3600 + dt.minute * 60 + dt.second
-
-                if this_start_sec < latest_end_sec:
-                    # (1) Modify last session to end at latest start
-                    last_seq["end_time"] = latest_start_str
-
-                    # (2) Append new non-operating session to fill the rest of the day
-                    sequences.append({
-                        "start_time": latest_start_str,
-                        "end_time": "23:59:59",
-                        "offset_from_start": 0,
-                        "operating": False
-                    })
-
-        # Compute the latest start time
-        if last_start_seconds:
-            latest_start_sec = max(last_start_seconds)
-            latest_start_str = f"{latest_start_sec // 3600:02}:{(latest_start_sec % 3600) // 60:02}:{latest_start_sec % 60:02}"
-
-            # Step 2: Adjust sequences for all vehicles
-            for record in vehicle_records.values():
-                sequences = record["travel_sequences"]
-                if not sequences:
-                    continue
-
-                last_seq = sequences[-1]
-                if not last_seq.get("operating", True):
-                    dt = datetime.strptime(last_seq["start_time"], "%H:%M:%S")
-                    this_start_sec = dt.hour * 3600 + dt.minute * 60 + dt.second
-
-                    if this_start_sec < latest_start_sec:
-                        # (1) Modify last session to end at latest start
-                        last_seq["end_time"] = latest_start_str
-
-                        # (2) Append new non-operating session to fill the rest of the day
-                        sequences.append({
-                            "start_time": latest_start_str,
-                            "end_time": "23:59:59",
-                            "offset_from_start": 0,
-                            "operating": False
-                        })
-                else:
-                    print(last_seq)
-
 
         self._fleet_operation = fleet_result
 
@@ -617,10 +552,13 @@ class TripSimulator:
         event_locations = np.array([event["location"] for event in base_seq])
         event_cumulative_durations = np.concatenate(([0], np.cumsum(event_durations)))
 
-        # Create a daily time range with the given time_step.
-        time_range = pd.date_range("00:00:00", "23:59:59", freq=f"{time_step}s")
-        times = time_range.time
-        times_sec = np.array([t.hour * 3600 + t.minute * 60 + t.second for t in times])
+        # Use the full service-day timeline when operations extend beyond midnight.
+        latest_end_sec = max(86400, *(hlp.gtfs_time_to_seconds(seq['end_time'])
+            for vehicle in self._fleet_operation for seq in vehicle['travel_sequences']))
+        times_sec = np.arange(0, latest_end_sec, time_step)
+        times = (pd.date_range("00:00:00", periods=len(times_sec), freq=f"{time_step}s").time
+                 if latest_end_sec <= 86400 else
+                 [hlp.seconds_to_gtfs_time(int(sec)) for sec in times_sec])
         
         # Prepare an empty array to store computed Point objects.
         num_vehicles = len(self._fleet_operation)
@@ -634,11 +572,9 @@ class TripSimulator:
                 # Skip the intervals where the vehicles are not in operation
                 if not seq["operating"]: 
                     continue
-                # Convert travel sequence start/end times (HH:MM:SS) into seconds-from-midnight.
-                seq_start = pd.to_datetime(seq["start_time"], format="%H:%M:%S").time()
-                seq_end = pd.to_datetime(seq["end_time"], format="%H:%M:%S").time()
-                seq_start_sec = seq_start.hour * 3600 + seq_start.minute * 60 + seq_start.second
-                seq_end_sec = seq_end.hour * 3600 + seq_end.minute * 60 + seq_end.second
+                # Convert GTFS service-day times to seconds without midnight wrapping.
+                seq_start_sec = hlp.gtfs_time_to_seconds(seq["start_time"])
+                seq_end_sec = hlp.gtfs_time_to_seconds(seq["end_time"])
 
                 # Identify the time indices in the overall time range that fall within this travel sequence.
                 indices = np.where((times_sec >= seq_start_sec) & (times_sec < seq_end_sec))[0]
@@ -721,11 +657,10 @@ class TripSimulator:
 
                 # Convert time_key to a datetime object
                 if isinstance(time_key, str):
-                    time_obj = datetime.strptime(time_key, "%H:%M:%S").time()
+                    timestamp = datetime.combine(date.today(), datetime.min.time()) + pd.Timedelta(
+                        seconds=hlp.gtfs_time_to_seconds(time_key))
                 else:
-                    time_obj = time_key
-
-                timestamp = datetime.combine(date.today(), time_obj)
+                    timestamp = datetime.combine(date.today(), time_key)
                 data.append({
                     "vehicle_id": vehicle_id,
                     "time": timestamp,
@@ -855,8 +790,12 @@ class TripSimulator:
         if not hasattr(self, "_single_trip_sequence") or self._single_trip_sequence is None:
             self.compute_single_trip_sequence()
 
-        times = pd.date_range("00:00:00", "23:59:59", freq=f"{time_step}s").time
-        times_sec = np.array([t.hour*3600 + t.minute*60 + t.second for t in times])
+        latest_end_sec = max(86400, *(hlp.gtfs_time_to_seconds(seq['end_time'])
+            for vehicle in self._fleet_operation for seq in vehicle['travel_sequences']))
+        times_sec = np.arange(0, latest_end_sec, time_step)
+        times = (pd.date_range("00:00:00", periods=len(times_sec), freq=f"{time_step}s").time
+                 if latest_end_sec <= 86400 else
+                 [hlp.seconds_to_gtfs_time(int(sec)) for sec in times_sec])
 
         events = self._single_trip_sequence
         durations = np.array([e["duration"] for e in events])
@@ -878,11 +817,8 @@ class TripSimulator:
                 if not seq["operating"]:
                     continue
 
-                start = pd.to_datetime(seq["start_time"]).time()
-                end = pd.to_datetime(seq["end_time"]).time()
-
-                start_sec = start.hour*3600 + start.minute*60 + start.second
-                end_sec = end.hour*3600 + end.minute*60 + end.second
+                start_sec = hlp.gtfs_time_to_seconds(seq["start_time"])
+                end_sec = hlp.gtfs_time_to_seconds(seq["end_time"])
 
                 idx = np.where(
                     (times_sec >= start_sec) &
@@ -905,5 +841,3 @@ class TripSimulator:
             activity += vehicle_activity
 
         return activity
-
-

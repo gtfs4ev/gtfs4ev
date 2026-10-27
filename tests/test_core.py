@@ -305,7 +305,6 @@ def test_invalid_trip_id_raises(manager):
     with pytest.raises(IndexError):
         manager.trip_length_km("INVALID_TRIP_ID")
 
-
 # -------------------------------------------------------------------------------
 # FleetSimulator Tests
 # -------------------------------------------------------------------------------
@@ -412,6 +411,39 @@ def test_fleet_trajectory_non_empty(fleet_simulator):
     traj = fleet_simulator.get_fleet_trajectory(time_step=360)
 
     assert len(traj) > 0
+
+# GTFS extended service times
+
+def test_fleetsimulator_extended_service_times(manager):
+    """Fleet operation must preserve GTFS times beyond midnight."""
+    trip_id = manager.frequencies["trip_id"].iloc[0]
+
+    # Create an overnight frequency interval without modifying the shared manager
+    overnight_manager = GTFSManager("examples/data/sample_GTFS")
+    overnight_manager._frequencies = overnight_manager.frequencies[
+        overnight_manager.frequencies["trip_id"] == trip_id
+    ].iloc[[0]].copy()
+
+    overnight_manager._frequencies.loc[:, "start_time"] = "23:00:00"
+    overnight_manager._frequencies.loc[:, "end_time"] = "27:00:00"
+    overnight_manager._frequencies.loc[:, "headway_secs"] = 3600
+
+    sim = FleetSimulator(overnight_manager, trip_ids=[trip_id])
+    sim.compute_fleet_operation(transient_regime=True)
+
+    # Check that fleet operation extends beyond midnight
+    operating_sequences = [
+        seq
+        for sequences in sim.fleet_operation["travel_sequences"]
+        for seq in sequences
+        if seq["operating"]
+    ]
+
+    assert len(operating_sequences) > 0
+    assert any(
+        hlp.gtfs_time_to_seconds(seq["end_time"]) > 86400
+        for seq in operating_sequences
+    )
 
 # Edge cases
 
