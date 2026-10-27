@@ -25,7 +25,6 @@ These tables are linked through identifiers, and their correct interpretation re
 
 For the time being, GTFS4EV is designed to simulate a single GTFS service day, including operations extending beyond midnight. Following the GTFS convention, times can exceed 24:00:00 (e.g., 28:00:00 represents 04:00 the following day). This convention is preserved throughout the vehicle operation and charging simulations. Only aggregated charging load curves are folded into a 24-hour clock-time profile.
 
-
 ### Method for ensuring internal consistency
 
 A key methodological feature of the GTFS data pre-processing stage is to ensure **internal consistency across all GTFS tables**. For simulation-ready analyses, the input data must form **a closed system of mutually referenced entities**. Hence, agencies, routes, services, trips, stop times, stops, shapes, and frequencies must all be connected through valid references, with no isolated or incomplete elements.
