@@ -642,7 +642,7 @@ def simulator(events):
 @pytest.mark.parametrize("location", ["depot", "stop", "terminal"])
 def test_midnight_split_conserves_energy(time_step_s, location):
     obj = simulator([
-        {"start_time": "23:00:00", "end_time": "01:00:00",
+        {"start_time": "23:00:00", "end_time": "25:00:00",
          "location": location, "power": 60}
     ])
     curve = obj.compute_charging_load_curve(time_step_s)
@@ -654,7 +654,7 @@ def test_midnight_split_conserves_energy(time_step_s, location):
 @pytest.mark.parametrize("time_step_s", [60, 900, 1800])
 def test_midnight_split_does_not_create_overlap(time_step_s):
     obj = simulator([
-        {"start_time": "23:00:00", "end_time": "01:00:00",
+        {"start_time": "23:00:00", "end_time": "25:00:00",
          "location": "depot", "power": 60},
         {"start_time": "01:00:00", "end_time": "02:00:00",
          "location": "depot", "power": 60},
