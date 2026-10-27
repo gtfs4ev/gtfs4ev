@@ -6,6 +6,7 @@ from shapely.geometry import LineString, Point
 from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.core.fleetsimulator import FleetSimulator
 from gtfs4ev.core.chargingsimulator import ChargingSimulator
+from gtfs4ev.utils import helpers as hlp
 
 # -------------------------------------------------------------------------------
 # GTFSManager Tests
@@ -61,6 +62,63 @@ def test_trip_route_references_exist(manager):
         route_ids = set(manager.routes["route_id"])
         assert set(manager.trips["route_id"]).issubset(route_ids)
 
+# GTFS service time loading
+
+def test_gtfsmanager_load_extended_frequency_times(tmp_path):
+    """Extended GTFS frequency times must be preserved as strings."""
+    (tmp_path / "frequencies.txt").write_text(
+        "trip_id,start_time,end_time,headway_secs\n"
+        "T1,23:00:00,27:00:00,600\n"
+    )
+
+    manager = GTFSManager.__new__(GTFSManager)
+    manager.gtfs_datafolder = tmp_path
+
+    df = manager._load_csv(
+        "frequencies.txt",
+        gtfs_time_columns=['start_time', 'end_time']
+    )
+
+    assert df["start_time"].iloc[0] == "23:00:00"
+    assert df["end_time"].iloc[0] == "27:00:00"
+
+
+def test_gtfsmanager_load_extended_stop_times(tmp_path):
+    """Extended GTFS stop times must be preserved as strings."""
+    (tmp_path / "stop_times.txt").write_text(
+        "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+        "T1,23:30:00,23:35:00,S1,1\n"
+        "T1,27:00:00,27:05:00,S2,2\n"
+    )
+
+    manager = GTFSManager.__new__(GTFSManager)
+    manager.gtfs_datafolder = tmp_path
+
+    df = manager._load_csv(
+        "stop_times.txt",
+        gtfs_time_columns=['arrival_time', 'departure_time']
+    )
+
+    assert df["arrival_time"].iloc[1] == "27:00:00"
+    assert df["departure_time"].iloc[1] == "27:05:00"
+
+
+def test_gtfsmanager_reject_invalid_time(tmp_path):
+    """GTFSManager must reject malformed GTFS time values."""
+    (tmp_path / "frequencies.txt").write_text(
+        "trip_id,start_time,end_time,headway_secs\n"
+        "T1,23:00:00,-01:00:00,600\n"
+    )
+
+    manager = GTFSManager.__new__(GTFSManager)
+    manager.gtfs_datafolder = tmp_path
+
+    with pytest.raises(ValueError):
+        manager._load_csv(
+            "frequencies.txt",
+            gtfs_time_columns=['start_time', 'end_time']
+        )
+
 # Cleaning
 
 def test_clean_removes_or_preserves_entities(manager):
@@ -71,9 +129,9 @@ def test_clean_removes_or_preserves_entities(manager):
 
     manager.clean_all()
 
-    assert len(stops_before_cleaning) <= len(manager.stops)
-    assert len(trips_before_cleaning) <= len(manager.trips)
-    assert len(stop_times_before_cleaning) <= len(manager.stop_times)
+    assert len(stops_before_cleaning) >= len(manager.stops)
+    assert len(trips_before_cleaning) >= len(manager.trips)
+    assert len(stop_times_before_cleaning) >= len(manager.stop_times)
 
 # Adding idle times
 
@@ -85,7 +143,10 @@ def test_add_idle_time_stops_creates_column(manager):
     manager.add_idle_time_stops(mean_idle_time_s=600, std_idle_time_s=60)
 
     # Check that some departure times have increased
-    time_diff = (manager.stop_times['departure_time'] - original_times).dt.total_seconds()
+    time_diff = (
+        manager.stop_times['departure_time'].map(hlp.gtfs_time_to_seconds)
+        - original_times.map(hlp.gtfs_time_to_seconds)
+    )
     assert time_diff.max() > 0  # At least some stops have added idle time
     assert time_diff.mean() > 0  # On average, time has been added
 

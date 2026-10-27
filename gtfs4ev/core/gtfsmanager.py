@@ -76,6 +76,7 @@ class GTFSManager:
         print(f"INFO \t Creation of a GTFSManager object.")
         print("=========================================")
 
+
         self.gtfs_datafolder = gtfs_datafolder
 
         # Load the datasets using the helper method
@@ -91,7 +92,7 @@ class GTFSManager:
         self._stop_times = self._load_csv("stop_times.txt",
                                           columns=['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence'],
                                           dtypes={'trip_id': str, 'arrival_time': str, 'departure_time': str, 'stop_id': str, 'stop_sequence': int},
-                                          parse_dates={'arrival_time': '%H:%M:%S', 'departure_time': '%H:%M:%S'})
+                                          gtfs_time_columns=['arrival_time', 'departure_time'])
         self._calendar = self._load_csv("calendar.txt",
                                         dtypes={'service_id': str, 'monday': bool, 'tuesday': bool, 'wednesday': bool,
                                                 'thursday': bool, 'friday': bool, 'saturday': bool, 'sunday': bool,
@@ -100,8 +101,7 @@ class GTFSManager:
         self._frequencies = self._load_csv("frequencies.txt",
                                            columns=['trip_id', 'start_time', 'end_time', 'headway_secs'],
                                            dtypes={'trip_id': str, 'start_time': str, 'end_time': str, 'headway_secs': int},
-                                           parse_dates={'start_time': '%H:%M:%S', 'end_time': '%H:%M:%S'},
-                                           replace_times={'24:00:00': '23:59:59'})
+                                           gtfs_time_columns=['start_time', 'end_time'])
         self._stops = self._load_stops()
         self._shapes = self._load_shapes()
 
@@ -720,7 +720,7 @@ class GTFSManager:
         if are_all_values_same:
             print("\t Temporal Analysis:")
             print(f"\t  - Frequency intervals: {group_sizes['row_count'][0]}")
-            print(f"\t  - Operating from {self.frequencies['start_time'].min()} to {self.frequencies['end_time'].max()}")
+            print(f"\t  - Operating from {hlp.seconds_to_gtfs_time(int(self.frequencies['start_time'].map(hlp.gtfs_time_to_seconds).min()))} to {hlp.seconds_to_gtfs_time(int(self.frequencies['end_time'].map(hlp.gtfs_time_to_seconds).max()))}")
         else:
             print("\t🔹Note: The number of frequency intervals is inconsistent across trips.")
 
@@ -769,7 +769,8 @@ class GTFSManager:
             1800.0
         """
         trip_stop_times = self.stop_times[self.stop_times['trip_id'] == trip_id]
-        duration = (trip_stop_times['arrival_time'].iloc[-1] - trip_stop_times['departure_time'].iloc[0]).total_seconds()
+        duration = (hlp.gtfs_time_to_seconds(trip_stop_times['arrival_time'].iloc[-1])
+                    - hlp.gtfs_time_to_seconds(trip_stop_times['departure_time'].iloc[0]))
 
         return duration
 
@@ -788,15 +789,15 @@ class GTFSManager:
 
         # start terminal dwell
         start_dwell = (
-            trip_stop_times['departure_time'].iloc[0]
-            - trip_stop_times['arrival_time'].iloc[0]
-        ).total_seconds()
+            hlp.gtfs_time_to_seconds(trip_stop_times['departure_time'].iloc[0])
+            - hlp.gtfs_time_to_seconds(trip_stop_times['arrival_time'].iloc[0])
+        )
 
         # end terminal dwell
         end_dwell = (
-            trip_stop_times['departure_time'].iloc[-1]
-            - trip_stop_times['arrival_time'].iloc[-1]
-        ).total_seconds()
+            hlp.gtfs_time_to_seconds(trip_stop_times['departure_time'].iloc[-1])
+            - hlp.gtfs_time_to_seconds(trip_stop_times['arrival_time'].iloc[-1])
+        )
 
         return start_dwell + end_dwell
 
@@ -1055,7 +1056,7 @@ class GTFSManager:
             None
 
         Notes:
-            - Arrival and departure times are converted to pandas datetime if needed.
+            - Arrival and departure times remain GTFS strings after modification.
             - This operation modifies `self.stop_times` in place.
         """
         print(f"INFO \t Adding terminal idle time (mean={mean_idle_time_s}s, std={std_idle_time_s}s)")
@@ -1067,15 +1068,15 @@ class GTFSManager:
         first_stop_indices = self.stop_times.groupby('trip_id')['stop_sequence'].idxmin()
         last_stop_indices = self.stop_times.groupby('trip_id')['stop_sequence'].idxmax()
 
-        # Convert time columns to datetime if needed
+        # Convert GTFS strings to service-day seconds for arithmetic
         time_cols = ['arrival_time', 'departure_time']
         for col in time_cols:
-            self.stop_times[col] = pd.to_datetime(self.stop_times[col])
+            self.stop_times[col] = self.stop_times[col].map(hlp.gtfs_time_to_seconds)
 
         # Loop over each trip and apply individual idle times
         for trip_id in self.stop_times['trip_id'].unique():
             idle_time = max(0, np.random.normal(mean_idle_time_s, std_idle_time_s))  # prevent negative values
-            idle_delta = pd.to_timedelta(idle_time / 2, unit='s')
+            idle_delta = int(round(idle_time / 2))
 
             first_idx = first_stop_indices[trip_id]
             last_idx = last_stop_indices[trip_id]
@@ -1086,6 +1087,10 @@ class GTFSManager:
             # Shift all stops after the first by half the idle time
             mask = (self.stop_times['trip_id'] == trip_id) & (self.stop_times.index > first_idx)
             self.stop_times.loc[mask, time_cols] += idle_delta
+
+        # Restore GTFS strings, preserving hours beyond 24
+        for col in time_cols:
+            self.stop_times[col] = self.stop_times[col].map(hlp.seconds_to_gtfs_time)
 
     def add_idle_time_stops(self, mean_idle_time_s, std_idle_time_s) -> None:
         """
@@ -1107,7 +1112,7 @@ class GTFSManager:
             None
 
         Notes:
-            - Arrival and departure times are converted to pandas datetime if needed.
+            - Arrival and departure times remain GTFS strings after modification.
             - Trips with fewer than three stops are ignored.
             - This operation modifies `self.stop_times` in place.
         """
@@ -1115,9 +1120,10 @@ class GTFSManager:
 
         self.stop_times.sort_values(by=['trip_id', 'stop_sequence'], inplace=True)
 
+        # Convert GTFS strings to service-day seconds for arithmetic
         time_cols = ['arrival_time', 'departure_time']
         for col in time_cols:
-            self.stop_times[col] = pd.to_datetime(self.stop_times[col])
+            self.stop_times[col] = self.stop_times[col].map(hlp.gtfs_time_to_seconds)
 
         for trip_id, trip_df in self.stop_times.groupby('trip_id'):
             stop_indices = trip_df.index.tolist()
@@ -1126,7 +1132,7 @@ class GTFSManager:
 
             for idx in stop_indices[1:-1]:  # intermediate stops only
                 idle_time = max(0, np.random.normal(mean_idle_time_s, std_idle_time_s))
-                idle_delta = pd.to_timedelta(idle_time, unit='s')
+                idle_delta = int(round(idle_time))
 
                 # Extend dwell time at this stop
                 self.stop_times.loc[idx, 'departure_time'] += idle_delta
@@ -1134,6 +1140,10 @@ class GTFSManager:
                 # Shift all following stops (both arrival and departure)
                 following_mask = (self.stop_times['trip_id'] == trip_id) & (self.stop_times.index > idx)
                 self.stop_times.loc[following_mask, time_cols] += idle_delta
+
+        # Restore GTFS strings, preserving hours beyond 24
+        for col in time_cols:
+            self.stop_times[col] = self.stop_times[col].map(hlp.seconds_to_gtfs_time)
 
     ## ============================================================
     ## Data access facilitators
@@ -1584,7 +1594,7 @@ class GTFSManager:
 
             if are_all_values_same:
                 f.write(f"Frequency intervals: {group_sizes['row_count'][0]} \n")
-                f.write(f"Operating from {self.frequencies['start_time'].min()} to {self.frequencies['end_time'].max()}")
+                f.write(f"Operating from {hlp.seconds_to_gtfs_time(int(self.frequencies['start_time'].map(hlp.gtfs_time_to_seconds).min()))} to {hlp.seconds_to_gtfs_time(int(self.frequencies['end_time'].map(hlp.gtfs_time_to_seconds).max()))}")
             else:
                 f.write("\t Note: The number of frequency intervals is inconsistent across trips.")
             
@@ -1608,23 +1618,43 @@ class GTFSManager:
     ## Internal helpers
     ## ============================================================
 
-    def _load_csv(self, filename, columns=None, dtypes=None, parse_dates=None, replace_times=None):
+    def _load_csv(self, filename, columns=None, dtypes=None, parse_dates=None, gtfs_time_columns=None):
         """
         Generic helper method to load a CSV file with optional column selection,
         data type conversion, and date parsing.
+
+        GTFS service times are preserved as strings, including
+        extended times such as 25:30:00 and 27:00:00.
         """
         file_path = self.gtfs_datafolder / filename
+
         try:
-            df = pd.read_csv(file_path, usecols=columns, dtype=dtypes)
-            if replace_times:
-                for col in ['start_time', 'end_time']:
-                    if col in df.columns:
-                        df[col] = df[col].str.replace('24:00:00', replace_times.get('24:00:00', '23:59:59'))
+            df = pd.read_csv(
+                file_path,
+                usecols=columns,
+                dtype=dtypes
+            )
+
+            # Parse calendar dates where applicable.
             if parse_dates:
                 for col, fmt in parse_dates.items():
-                    df[col] = pd.to_datetime(df[col], format=fmt)
+                    df[col] = pd.to_datetime(
+                        df[col],
+                        format=fmt
+                    )
+
+            # Validate GTFS service times while preserving
+            # their original string representation.
+            if gtfs_time_columns:
+                for col in gtfs_time_columns:
+                    for value in df[col]:
+                        hlp.gtfs_time_to_seconds(value)
+
         except Exception as e:
-            raise ValueError(f"ERROR \t Problem loading {filename}.") from e
+            raise ValueError(
+                f"ERROR \t Problem loading {filename}."
+            ) from e
+
         return df
 
     def _load_stops(self):
