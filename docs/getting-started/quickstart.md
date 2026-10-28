@@ -62,6 +62,8 @@ All parameters are documented direclty in the `cli_basic.py` configuration file.
 
 Other advanced parameters can be specified related to GTFS preprocessing, fleet simulation options, and additional outputs.
 
+> **Note:** GTFS4EV currently requires frequency-based GTFS services representation. Hence; `frequencies.txt` is required to simulate fleet operations. Schedule-based GTFS feeds without frequency definitions are not yet supported.
+
 GTFS4EV includes several built-in charging strategies:
 
 * **terminal_random** → Random charging at terminals with the given probability
