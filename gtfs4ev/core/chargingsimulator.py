@@ -56,7 +56,8 @@ class ChargingSimulator:
 
     Attributes:
         fleet_sim (FleetSimulator): Fleet simulator containing vehicle operations.
-        energy_consumption_kWh_per_km (float): Vehicle energy consumption rate.
+        energy_consumption_kWh_per_km (float): Default vehicle energy consumption rate.
+        trip_energy_consumption_kWh_per_km (dict): Optional trip-specific rates keyed by GTFS trip_id.
         security_driving_distance_km (float): Safety distance added to energy needs.
         charging_powers_kW (dict): Charging power distributions by location type.
         charging_schedule_pervehicle (pd.DataFrame): Vehicle-level charging results (computed after simulation).
@@ -82,13 +83,27 @@ class ChargingSimulator:
                 [120, 0.3]     # 120 kW charger, 30% probability
             ]
         }
+
+    **Example configuration** for trip-specific energy consumption:
+
+        charging_sim = ChargingSimulator(
+            fleet_sim,
+            energy_consumption_kWh_per_km=1.2,
+            security_driving_distance_km=10.0,
+            charging_powers_kW=charging_powers_kW,
+            trip_energy_consumption_kWh_per_km={
+                "trip_uphill": 1.8,
+                "trip_downhill": 1.0
+            }
+        )
+
     """
 
     ## ============================================================
     ## Constructor
     ## ============================================================
 
-    def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, security_driving_distance_km: float , charging_powers_kW: dict = None):
+    def __init__(self, fleet_sim: FleetSimulator, energy_consumption_kWh_per_km: float, security_driving_distance_km: float , charging_powers_kW: dict = None, trip_energy_consumption_kWh_per_km: dict = None):
         """
         Initialize a ChargingSimulator based on an existing fleet simulation.
 
@@ -101,6 +116,8 @@ class ChargingSimulator:
             energy_consumption_kWh_per_km (float): Energy consumption per kilometer.
             security_driving_distance_km (float): Additional safety distance in kilometers.
             charging_powers_kW (dict): Charging power distributions by location type.
+            trip_energy_consumption_kWh_per_km (dict, optional): Mapping from GTFS trip_id
+                to energy consumption in kWh/km. Unspecified trips use the default.
 
         Raises:
             ValueError: If fleet operation data is missing or parameters are invalid.
@@ -111,6 +128,7 @@ class ChargingSimulator:
 
         self.fleet_sim = fleet_sim
         self.energy_consumption_kWh_per_km = energy_consumption_kWh_per_km
+        self.trip_energy_consumption_kWh_per_km = trip_energy_consumption_kWh_per_km
         self.security_driving_distance_km = security_driving_distance_km
         self.charging_powers_kW = charging_powers_kW or {}
 
@@ -154,6 +172,24 @@ class ChargingSimulator:
         if not isinstance(value, (int, float)) or value <= 0:
             raise ValueError("energy_consumption_kWh_per_km must be a positive number.")
         self._energy_consumption_kWh_per_km = value
+
+    @property
+    def trip_energy_consumption_kWh_per_km(self) -> dict:
+        """Optional GTFS trip_id to energy consumption (kWh/km) mapping."""
+        return self._trip_energy_consumption_kWh_per_km
+
+    @trip_energy_consumption_kWh_per_km.setter
+    def trip_energy_consumption_kWh_per_km(self, value):
+        if value is None:
+            value = {}
+        if not isinstance(value, dict):
+            raise ValueError("trip_energy_consumption_kWh_per_km must be a dictionary or None.")
+        for trip_id, rate in value.items():
+            if not isinstance(trip_id, str) or not trip_id:
+                raise ValueError("Trip energy consumption keys must be non-empty GTFS trip_id strings.")
+            if not isinstance(rate, (int, float)) or not np.isfinite(rate) or rate <= 0:
+                raise ValueError(f"Energy consumption for trip '{trip_id}' must be a finite positive number.")
+        self._trip_energy_consumption_kWh_per_km = value.copy()
 
     @property
     def security_driving_distance_km(self) -> float:
@@ -275,7 +311,14 @@ class ChargingSimulator:
 
         for idx, (_, vehicle_record) in enumerate(self.fleet_sim.fleet_operation.iterrows()):
             travel_sequence = self._construct_travel_sequence(vehicle_record, trip_base_sequences)            
-            charging_result = self._apply_charging_strategies(travel_sequence, charging_strategies, **kwargs)            
+            trip_id = vehicle_record["trip_id"]
+            consumption_rate = self.trip_energy_consumption_kWh_per_km.get(
+                trip_id, self.energy_consumption_kWh_per_km
+            )
+            charging_result = self._apply_charging_strategies(
+                travel_sequence, charging_strategies,
+                energy_consumption_kWh_per_km=consumption_rate, **kwargs
+            )            
             result = {"vehicle_id": vehicle_record["vehicle_id"], **charging_result}
             vehicle_charging_sequences.append(result)
 
@@ -565,14 +608,17 @@ class ChargingSimulator:
 
         return segments
 
-    def _apply_charging_strategies(self, travel_sequence, charging_strategy, **kwargs):
+    def _apply_charging_strategies(self, travel_sequence, charging_strategy, energy_consumption_kWh_per_km=None, **kwargs):
         """
         Apply multiple charging strategies to a vehicle travel sequence.
 
         Returns:
             dict: Charging result including success flag, energy balance, and battery metrics.
         """
-        total_need = sum(event["distance_km"] * self.energy_consumption_kWh_per_km for event in travel_sequence) + (self.security_driving_distance_km * self.energy_consumption_kWh_per_km)
+        consumption_rate = (self.energy_consumption_kWh_per_km if energy_consumption_kWh_per_km is None
+                            else energy_consumption_kWh_per_km)
+        total_need = (sum(event["distance_km"] * consumption_rate for event in travel_sequence)
+                      + self.security_driving_distance_km * self.energy_consumption_kWh_per_km)
         remaining = total_need
         charging_events = []
         added_intervals = []
@@ -622,7 +668,9 @@ class ChargingSimulator:
 
         # Compute minimum required capacity and associated SOC at the start of the day
         charging_events.sort(key=lambda e: hlp.gtfs_time_to_seconds(e["start_time"]))
-        min_capacity, start_end_soc_kWh = self._find_minimum_battery_capacity_and_start_capacity(travel_sequence, charging_events)
+        min_capacity, start_end_soc_kWh = self._find_minimum_battery_capacity_and_start_capacity(
+            travel_sequence, charging_events, energy_consumption_kWh_per_km=consumption_rate
+        )
 
         # Check for success
         if remaining > 0.01:
@@ -939,12 +987,13 @@ class ChargingSimulator:
 
         return random.choices(powers, weights=probabilities, k=1)[0]
 
-    def _find_minimum_battery_capacity_and_start_capacity(self, travel_sequence, charging_events):
+    def _find_minimum_battery_capacity_and_start_capacity(self, travel_sequence, charging_events, energy_consumption_kWh_per_km=None):
         # Merge and sort all events by time
         events = []
 
         # Energy consumption 
-        energy_consumption_kWh_per_km = self.energy_consumption_kWh_per_km
+        if energy_consumption_kWh_per_km is None:
+            energy_consumption_kWh_per_km = self.energy_consumption_kWh_per_km
 
         # --- Travel events ---
         for event in travel_sequence:

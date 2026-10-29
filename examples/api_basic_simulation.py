@@ -60,19 +60,27 @@ fleet_sim.compute_fleet_operation(use_multiprocessing=False)
 # Define vehicle energy parameters and available charging infrastructure
 charging = ChargingSimulator(
     fleet_sim=fleet_sim,                     # Fleet operation results used as input
-    energy_consumption_kWh_per_km=1.2,
-    security_driving_distance_km=10.0,
+    energy_consumption_kWh_per_km=0.39,      # Average vehicle energy consumption per kilometer
+    security_driving_distance_km=0,          # Extra distance reserve to keep in the battery
     charging_powers_kW={
-        "depot": [[22, 1.0]],     
-        "terminal": [[50, 1.0]],            
-        "stop": [[50, 1.0]]
+        # Charging power levels (kW) and their relative availability/probability
+        "depot": [[22, 0.5], [50, 0.5]],     # Depot chargers: 50% at 22 kW, 50% at 50 kW
+        "terminal": [[150, 1.0]],            # Terminal chargers: 100% at 150 kW
+        "stop": [[150, 1.0]]                 # Terminal chargers: 100% at 150 kW (for the sake of illustration, stop charging not used)
     }
+    # Optional: specify trip-specific energy consumption factors (kWh/km).
+    # Trips not listed use the default energy_consumption_kWh_per_km.
+    # ,trip_energy_consumption_kWh_per_km={
+    #     "1107D110": 1.8,
+    #     "1107D111": 2.1
+    # }
 )
 
 # Compute charging schedules based on the selected charging strategies
 charging.compute_charging_schedule(
-    charging_strategies=["stop_random"],
-    charge_probability_stop=1.0
+    charging_strategies=["terminal_random", "depot_night"],  # Opportunity charging at terminals during service + overnight charging at the depot
+    charge_probability_terminal=0.5,                         # Probability of initiating a charge upon arrival at a terminal
+    depot_travel_time_min=[30, 15]                           # [mean, std] travel time (minutes) from end of service to the depot
 )
 
 # ------------------------------------------------------------------------------

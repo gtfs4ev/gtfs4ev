@@ -867,3 +867,80 @@ def test_terminal_specific_random(charging_simulator):
         atol=1e-12,
         check_dtype=False
     )
+
+# Trip-specific energy consumption
+
+def test_trip_energy_consumption_override(fleet_sim, charging_powers):
+    """Trip-specific consumption affects charging demand and battery sizing."""
+    trip_id = fleet_sim.fleet_operation["trip_id"].iloc[0]
+
+    sim = ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=0,
+        charging_powers_kW=charging_powers,
+        trip_energy_consumption_kWh_per_km={trip_id: 1.8}
+    )
+    sim.compute_charging_schedule(["depot_night"])
+
+    row = sim.charging_schedule_pervehicle.merge(
+        fleet_sim.fleet_operation[["vehicle_id", "trip_id"]],
+        on="vehicle_id"
+    )
+    selected = row[row["trip_id"] == trip_id]
+
+    assert not selected.empty
+    for _, vehicle in selected.iterrows():
+        assert vehicle["charging_need_kWh"] > 0
+        assert vehicle["min_capacity_kWh"] >= 0
+
+    default_sim = ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=0,
+        charging_powers_kW=charging_powers
+    )
+    default_sim.compute_charging_schedule(["depot_night"])
+
+    baseline = default_sim.charging_schedule_pervehicle.set_index("vehicle_id")
+    modified = sim.charging_schedule_pervehicle.set_index("vehicle_id")
+
+    for vehicle_id in selected["vehicle_id"]:
+        assert modified.loc[vehicle_id, "charging_need_kWh"] == pytest.approx(
+            baseline.loc[vehicle_id, "charging_need_kWh"] * 1.5
+        )
+
+
+def test_trip_energy_consumption_fallback(fleet_sim, charging_powers):
+    """Unspecified trips use the default consumption factor."""
+    trip_id = fleet_sim.fleet_operation["trip_id"].iloc[0]
+
+    sim = ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=0,
+        charging_powers_kW=charging_powers,
+        trip_energy_consumption_kWh_per_km={trip_id: 1.8}
+    )
+
+    assert sim.trip_energy_consumption_kWh_per_km.get(
+        "unknown_trip", sim.energy_consumption_kWh_per_km
+    ) == 1.2
+
+
+@pytest.mark.parametrize("invalid_value", [
+    0, -1, "invalid", None, float("nan"), float("inf")
+])
+def test_invalid_trip_energy_consumption(
+    fleet_sim, invalid_value
+):
+    """Invalid trip-specific consumption factors are rejected."""
+    with pytest.raises(ValueError):
+        ChargingSimulator(
+            fleet_sim=fleet_sim,
+            energy_consumption_kWh_per_km=1.2,
+            security_driving_distance_km=10,
+            trip_energy_consumption_kWh_per_km={
+                "trip_1": invalid_value
+            }
+        )

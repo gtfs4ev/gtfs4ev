@@ -118,7 +118,9 @@ where:
 
 - $d_i$ is the distance traveled during travel event $i$  
 - $e_{\text{km}}$ is the vehicle energy consumption rate (kWh/km)  
-- $d_{\text{sec}}$ is an optional **security driving distance** representing operational margins  
+- $d_{\text{sec}}$ is an optional **security driving distance** representing operational margins
+
+> **Note:** By default, the vehicle energy consumption is estimated using a the same energy consumption factor (kWh/km) for every vehicle. To account for differences between trips, GTFS4EV also supports optional trip-specific consumption factors, allowing users to incorporate externally estimated consumption rates. For further details, see the [ChargingSimulator API documentation](../api/core-classes/chargingsimulator.md) 
 
 ### Charging strategies
 
