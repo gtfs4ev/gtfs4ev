@@ -68,6 +68,12 @@ charging = ChargingSimulator(
         "terminal": [[150, 1.0]],            # Terminal chargers: 100% at 150 kW
         "stop": [[150, 1.0]]                 # Terminal chargers: 100% at 150 kW (for the sake of illustration, stop charging not used)
     }
+    # Optional: specify trip-specific energy consumption factors (kWh/km).
+    # Trips not listed use the default energy_consumption_kWh_per_km.
+    # ,trip_energy_consumption_kWh_per_km={
+    #     "1107D110": 1.8,
+    #     "1107D111": 2.1
+    # }
 )
 
 # Compute charging schedules based on the selected charging strategies

@@ -1,11 +1,14 @@
 import pytest
+import shutil
 import numpy as np
 import pandas as pd
+import datetime
 from shapely.geometry import LineString, Point
 
 from gtfs4ev.core.gtfsmanager import GTFSManager
 from gtfs4ev.core.fleetsimulator import FleetSimulator
 from gtfs4ev.core.chargingsimulator import ChargingSimulator
+from gtfs4ev.utils import helpers as hlp
 
 # -------------------------------------------------------------------------------
 # GTFSManager Tests
@@ -61,6 +64,63 @@ def test_trip_route_references_exist(manager):
         route_ids = set(manager.routes["route_id"])
         assert set(manager.trips["route_id"]).issubset(route_ids)
 
+# GTFS service time loading
+
+def test_gtfsmanager_load_extended_frequency_times(tmp_path):
+    """Extended GTFS frequency times must be preserved as strings."""
+    (tmp_path / "frequencies.txt").write_text(
+        "trip_id,start_time,end_time,headway_secs\n"
+        "T1,23:00:00,27:00:00,600\n"
+    )
+
+    manager = GTFSManager.__new__(GTFSManager)
+    manager.gtfs_datafolder = tmp_path
+
+    df = manager._load_csv(
+        "frequencies.txt",
+        gtfs_time_columns=['start_time', 'end_time']
+    )
+
+    assert df["start_time"].iloc[0] == "23:00:00"
+    assert df["end_time"].iloc[0] == "27:00:00"
+
+
+def test_gtfsmanager_load_extended_stop_times(tmp_path):
+    """Extended GTFS stop times must be preserved as strings."""
+    (tmp_path / "stop_times.txt").write_text(
+        "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+        "T1,23:30:00,23:35:00,S1,1\n"
+        "T1,27:00:00,27:05:00,S2,2\n"
+    )
+
+    manager = GTFSManager.__new__(GTFSManager)
+    manager.gtfs_datafolder = tmp_path
+
+    df = manager._load_csv(
+        "stop_times.txt",
+        gtfs_time_columns=['arrival_time', 'departure_time']
+    )
+
+    assert df["arrival_time"].iloc[1] == "27:00:00"
+    assert df["departure_time"].iloc[1] == "27:05:00"
+
+
+def test_gtfsmanager_reject_invalid_time(tmp_path):
+    """GTFSManager must reject malformed GTFS time values."""
+    (tmp_path / "frequencies.txt").write_text(
+        "trip_id,start_time,end_time,headway_secs\n"
+        "T1,23:00:00,-01:00:00,600\n"
+    )
+
+    manager = GTFSManager.__new__(GTFSManager)
+    manager.gtfs_datafolder = tmp_path
+
+    with pytest.raises(ValueError):
+        manager._load_csv(
+            "frequencies.txt",
+            gtfs_time_columns=['start_time', 'end_time']
+        )
+
 # Cleaning
 
 def test_clean_removes_or_preserves_entities(manager):
@@ -71,9 +131,9 @@ def test_clean_removes_or_preserves_entities(manager):
 
     manager.clean_all()
 
-    assert len(stops_before_cleaning) <= len(manager.stops)
-    assert len(trips_before_cleaning) <= len(manager.trips)
-    assert len(stop_times_before_cleaning) <= len(manager.stop_times)
+    assert len(stops_before_cleaning) >= len(manager.stops)
+    assert len(trips_before_cleaning) >= len(manager.trips)
+    assert len(stop_times_before_cleaning) >= len(manager.stop_times)
 
 # Adding idle times
 
@@ -85,7 +145,10 @@ def test_add_idle_time_stops_creates_column(manager):
     manager.add_idle_time_stops(mean_idle_time_s=600, std_idle_time_s=60)
 
     # Check that some departure times have increased
-    time_diff = (manager.stop_times['departure_time'] - original_times).dt.total_seconds()
+    time_diff = (
+        manager.stop_times['departure_time'].map(hlp.gtfs_time_to_seconds)
+        - original_times.map(hlp.gtfs_time_to_seconds)
+    )
     assert time_diff.max() > 0  # At least some stops have added idle time
     assert time_diff.mean() > 0  # On average, time has been added
 
@@ -186,7 +249,6 @@ def test_stop_statistics_keys(manager):
 
     assert expected_keys.issubset(stats.keys())
 
-
 # Accessors
 
 def test_get_shape_returns_linestring(manager):
@@ -244,6 +306,54 @@ def test_invalid_trip_id_raises(manager):
     with pytest.raises(IndexError):
         manager.trip_length_km("INVALID_TRIP_ID")
 
+# Missing shapes.txt
+
+@pytest.mark.parametrize("shapes_content", [None, "", "shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence\n"])
+def test_missing_or_empty_shapes_generate_trip_geometries(tmp_path, shapes_content):
+    """Trips remain simulation-ready when shapes.txt is missing or empty."""
+    source = "examples/data/sample_GTFS"
+    feed = tmp_path / "gtfs"
+    shutil.copytree(source, feed)
+
+    shapes_file = feed / "shapes.txt"
+    if shapes_content is None:
+        shapes_file.unlink()
+    else:
+        shapes_file.write_text(shapes_content)
+
+    gtfs = GTFSManager(str(feed))
+
+    assert gtfs.check_all()
+    assert len(gtfs.shapes) == len(gtfs.trips)
+    for trip_id in gtfs.trips["trip_id"]:
+        shape = gtfs.get_shape(trip_id)
+        assert isinstance(shape, LineString)
+        assert shape.length > 0
+        assert gtfs.trip_length_km(trip_id) > 0
+
+
+def test_missing_shape_id_column(tmp_path):
+    """The shape_id column is optional when trip geometries are generated."""
+    feed = tmp_path / "gtfs"
+    shutil.copytree("examples/data/sample_GTFS", feed)
+    (feed / "shapes.txt").unlink()
+
+    trips = pd.read_csv(feed / "trips.txt", dtype=str)
+    trips.drop(columns="shape_id", errors="ignore").to_csv(feed / "trips.txt", index=False)
+
+    gtfs = GTFSManager(str(feed))
+
+    assert gtfs.check_all()
+    assert gtfs.trips["shape_id"].notna().all()
+    assert all(isinstance(gtfs.get_shape(trip_id), LineString) for trip_id in gtfs.trips["trip_id"])
+
+
+def test_existing_shapes_are_preserved():
+    """Loading a valid shapes.txt file must not replace its geometries."""
+    gtfs = GTFSManager("examples/data/sample_GTFS")
+
+    assert gtfs.check_all()
+    assert not gtfs.trips["shape_id"].str.startswith("generated_").any()
 
 # -------------------------------------------------------------------------------
 # FleetSimulator Tests
@@ -351,6 +461,39 @@ def test_fleet_trajectory_non_empty(fleet_simulator):
     traj = fleet_simulator.get_fleet_trajectory(time_step=360)
 
     assert len(traj) > 0
+
+# GTFS extended service times
+
+def test_fleetsimulator_extended_service_times(manager):
+    """Fleet operation must preserve GTFS times beyond midnight."""
+    trip_id = manager.frequencies["trip_id"].iloc[0]
+
+    # Create an overnight frequency interval without modifying the shared manager
+    overnight_manager = GTFSManager("examples/data/sample_GTFS")
+    overnight_manager._frequencies = overnight_manager.frequencies[
+        overnight_manager.frequencies["trip_id"] == trip_id
+    ].iloc[[0]].copy()
+
+    overnight_manager._frequencies.loc[:, "start_time"] = "23:00:00"
+    overnight_manager._frequencies.loc[:, "end_time"] = "27:00:00"
+    overnight_manager._frequencies.loc[:, "headway_secs"] = 3600
+
+    sim = FleetSimulator(overnight_manager, trip_ids=[trip_id])
+    sim.compute_fleet_operation(transient_regime=True)
+
+    # Check that fleet operation extends beyond midnight
+    operating_sequences = [
+        seq
+        for sequences in sim.fleet_operation["travel_sequences"]
+        for seq in sequences
+        if seq["operating"]
+    ]
+
+    assert len(operating_sequences) > 0
+    assert any(
+        hlp.gtfs_time_to_seconds(seq["end_time"]) > 86400
+        for seq in operating_sequences
+    )
 
 # Edge cases
 
@@ -548,7 +691,7 @@ def simulator(events):
 @pytest.mark.parametrize("location", ["depot", "stop", "terminal"])
 def test_midnight_split_conserves_energy(time_step_s, location):
     obj = simulator([
-        {"start_time": "23:00:00", "end_time": "01:00:00",
+        {"start_time": "23:00:00", "end_time": "25:00:00",
          "location": location, "power": 60}
     ])
     curve = obj.compute_charging_load_curve(time_step_s)
@@ -560,7 +703,7 @@ def test_midnight_split_conserves_energy(time_step_s, location):
 @pytest.mark.parametrize("time_step_s", [60, 900, 1800])
 def test_midnight_split_does_not_create_overlap(time_step_s):
     obj = simulator([
-        {"start_time": "23:00:00", "end_time": "01:00:00",
+        {"start_time": "23:00:00", "end_time": "25:00:00",
          "location": "depot", "power": 60},
         {"start_time": "01:00:00", "end_time": "02:00:00",
          "location": "depot", "power": 60},
@@ -581,6 +724,27 @@ def test_non_wrapping_charge_keeps_its_profile(time_step_s):
     np.testing.assert_array_equal(curve["depot"], expected)
     assert curve["depot"].sum() * time_step_s / 3600 == pytest.approx(120)
 
+# GTFS extended charging times
+
+def test_charging_load_curve_extended_times():
+    """Charging across midnight must preserve energy and daily time bins."""
+    simulator = ChargingSimulator.__new__(ChargingSimulator)
+
+    simulator._charging_schedule_pervehicle = pd.DataFrame([{
+        'charging_sequence': [{
+            'start_time': '23:00:00',
+            'end_time': '25:00:00',
+            'location': 'depot',
+            'power': 60
+        }]
+    }])
+
+    load = simulator.compute_charging_load_curve(time_step_s=3600)
+
+    assert load.loc[datetime.time(23, 0), 'depot'] == 60
+    assert load.loc[datetime.time(0, 0), 'depot'] == 60
+    assert load.loc[datetime.time(1, 0), 'depot'] == 0
+    assert load['depot'].sum() == 120
 
 # Built-in charging strategies starting from a fresh GTFS4EV state
 
@@ -703,3 +867,80 @@ def test_terminal_specific_random(charging_simulator):
         atol=1e-12,
         check_dtype=False
     )
+
+# Trip-specific energy consumption
+
+def test_trip_energy_consumption_override(fleet_sim, charging_powers):
+    """Trip-specific consumption affects charging demand and battery sizing."""
+    trip_id = fleet_sim.fleet_operation["trip_id"].iloc[0]
+
+    sim = ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=0,
+        charging_powers_kW=charging_powers,
+        trip_energy_consumption_kWh_per_km={trip_id: 1.8}
+    )
+    sim.compute_charging_schedule(["depot_night"])
+
+    row = sim.charging_schedule_pervehicle.merge(
+        fleet_sim.fleet_operation[["vehicle_id", "trip_id"]],
+        on="vehicle_id"
+    )
+    selected = row[row["trip_id"] == trip_id]
+
+    assert not selected.empty
+    for _, vehicle in selected.iterrows():
+        assert vehicle["charging_need_kWh"] > 0
+        assert vehicle["min_capacity_kWh"] >= 0
+
+    default_sim = ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=0,
+        charging_powers_kW=charging_powers
+    )
+    default_sim.compute_charging_schedule(["depot_night"])
+
+    baseline = default_sim.charging_schedule_pervehicle.set_index("vehicle_id")
+    modified = sim.charging_schedule_pervehicle.set_index("vehicle_id")
+
+    for vehicle_id in selected["vehicle_id"]:
+        assert modified.loc[vehicle_id, "charging_need_kWh"] == pytest.approx(
+            baseline.loc[vehicle_id, "charging_need_kWh"] * 1.5
+        )
+
+
+def test_trip_energy_consumption_fallback(fleet_sim, charging_powers):
+    """Unspecified trips use the default consumption factor."""
+    trip_id = fleet_sim.fleet_operation["trip_id"].iloc[0]
+
+    sim = ChargingSimulator(
+        fleet_sim=fleet_sim,
+        energy_consumption_kWh_per_km=1.2,
+        security_driving_distance_km=0,
+        charging_powers_kW=charging_powers,
+        trip_energy_consumption_kWh_per_km={trip_id: 1.8}
+    )
+
+    assert sim.trip_energy_consumption_kWh_per_km.get(
+        "unknown_trip", sim.energy_consumption_kWh_per_km
+    ) == 1.2
+
+
+@pytest.mark.parametrize("invalid_value", [
+    0, -1, "invalid", None, float("nan"), float("inf")
+])
+def test_invalid_trip_energy_consumption(
+    fleet_sim, invalid_value
+):
+    """Invalid trip-specific consumption factors are rejected."""
+    with pytest.raises(ValueError):
+        ChargingSimulator(
+            fleet_sim=fleet_sim,
+            energy_consumption_kWh_per_km=1.2,
+            security_driving_distance_km=10,
+            trip_energy_consumption_kWh_per_km={
+                "trip_1": invalid_value
+            }
+        )

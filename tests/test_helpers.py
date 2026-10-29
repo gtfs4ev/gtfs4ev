@@ -11,6 +11,9 @@ from gtfs4ev.utils.helpers import (
     crop_raster,
     length_km,
     mask_within_radius,
+    gtfs_time_to_seconds,
+    seconds_to_gtfs_time,
+    generate_shape_from_stops,
 )
 
 # -------------------------------------------------------------------
@@ -128,3 +131,99 @@ def test_mask_within_radius_symmetry():
 
     # symmetry check (basic sanity)
     assert m[1, 3] == m[3, 1]
+
+
+# ============================================================
+# GTFS extended-time handling
+# ============================================================
+
+@pytest.mark.parametrize(
+    "time_str, expected",
+    [
+        ("00:00:00", 0),
+        ("07:30:00", 27000),
+        ("23:59:59", 86399),
+        ("24:00:00", 86400),
+        ("25:30:00", 91800),
+        ("27:00:00", 97200),
+        ("7:30:00", 27000),
+    ],
+)
+def test_gtfs_time_to_seconds(time_str, expected):
+    assert gtfs_time_to_seconds(time_str) == expected
+
+
+@pytest.mark.parametrize(
+    "seconds, expected",
+    [
+        (0, "00:00:00"),
+        (86399, "23:59:59"),
+        (86400, "24:00:00"),
+        (91800, "25:30:00"),
+        (97200, "27:00:00"),
+    ],
+)
+def test_seconds_to_gtfs_time(seconds, expected):
+    assert seconds_to_gtfs_time(seconds) == expected
+
+
+@pytest.mark.parametrize(
+    "invalid_time",
+    [
+        "",
+        "abc",
+        "12:30",
+        "12:60:00",
+        "12:00:60",
+        "-01:00:00",
+        "12:-05:00",
+        "12:00:-05",
+        "24:10:00 extra",
+        None,
+    ],
+)
+def test_gtfs_time_to_seconds_invalid(invalid_time):
+    with pytest.raises(ValueError):
+        gtfs_time_to_seconds(invalid_time)
+
+@pytest.mark.parametrize(
+    "invalid_seconds",
+    [-1, 3.5, True, None, "86400"],
+)
+def test_seconds_to_gtfs_time_invalid(invalid_seconds):
+    with pytest.raises(ValueError):
+        seconds_to_gtfs_time(invalid_seconds)
+
+
+def test_gtfs_extended_time_roundtrip():
+    for time_str in [
+        "00:00:00",
+        "23:59:59",
+        "24:00:00",
+        "25:30:00",
+        "27:00:00",
+    ]:
+        seconds = gtfs_time_to_seconds(time_str)
+        assert seconds_to_gtfs_time(seconds) == time_str
+
+
+def test_gtfs_overnight_duration():
+    departure = gtfs_time_to_seconds("23:30:00")
+    arrival = gtfs_time_to_seconds("27:00:00")
+
+    assert arrival - departure == 12600
+
+# -------------------------------------------------------------------
+# generate_shape_from_stops
+# -------------------------------------------------------------------
+
+def test_generate_shape_from_stops_preserves_order():
+    points = [Point(0, 0), Point(1, 0), Point(1, 0), Point(1, 1)]
+    shape = generate_shape_from_stops(points)
+    assert list(shape.coords) == [(0, 0), (1, 0), (1, 1)]
+
+
+@pytest.mark.parametrize("points", [[Point(0, 0)], [Point(0, 0), Point(0, 0)], [Point(0, 0), None]])
+def test_generate_shape_from_stops_rejects_invalid_points(points):
+    with pytest.raises(ValueError):
+        generate_shape_from_stops(points)

@@ -19,11 +19,18 @@ The static General Transit Feed Specification (GTFS) is a standard data format w
 
 These tables are linked through identifiers, and their correct interpretation relies strongly on the **consistency of these links across files**. As a result, additional validation and cleaning is recommended before the data can be used for simulation-based analyses.
 
-> **Note:** While the `frequencies.txt` file is formally optional in the GTFS specification, GTFS4EV relies on headway-based service representations for fleet operation simulation. Hence, GTFS feeds in which every trip is defined as an individual trip (i.e. without a corresponding frequency-based representation), are not supported by the current simulation logic.
+!!! warning "GTFS service representation"
+    GTFS4EV is currently designed for **frequency-based services**, where vehicle operations are estimated from service headways defined in `frequencies.txt`. Although this file is optional in the GTFS specification, it is therefore required by GTFS4EV. **Schedule-based services**, where individual trips follow predefined timetables, are not currently supported. Similarly, GTFS4EV does not reconstruct existing vehicle duties using `block_id` or cross-route interlining.
+
+> **Note:** While `shapes.txt` is optional in the GTFS specification, it is highly recommended, as route geometries are used to estimate travel distances. When shape data are missing or empty, GTFS4EV generates approximate trip geometries by connecting successive stop locations in their scheduled order.
+
+### Service time convention
+
+For the time being, GTFS4EV is designed to simulate a single GTFS service day, including operations extending beyond midnight. Following the GTFS convention, times can exceed 24:00:00 (e.g., 28:00:00 represents 04:00 the following day). This convention is preserved throughout the vehicle operation and charging simulations. Only aggregated charging load curves are folded into a 24-hour clock-time profile.
 
 ### Method for ensuring internal consistency
 
-A key methodological feature of the GTFS data pre-processing stage is to ensure **internal consistency across all GTFS tables**. For simulation-ready analyses, the input data must form **a closed system of mutually referenced entities**. Hence, agencies, routes, services, trips, stop times, stops, shapes, and frequencies must all be connected through valid references, with no isolated or incomplete elements.
+A key methodological feature of the GTFS data pre-processing stage is to ensure **internal consistency across all GTFS tables**. For simulation-ready analyses, the input data must form **a closed system of mutually referenced entities**. Hence, the GTFS tables must be connected through valid references, with missing route geometries reconstructed from stop locations when necessary.
 
 The consistency process therefore follows two complementary principles:
 
@@ -111,7 +118,9 @@ where:
 
 - $d_i$ is the distance traveled during travel event $i$  
 - $e_{\text{km}}$ is the vehicle energy consumption rate (kWh/km)  
-- $d_{\text{sec}}$ is an optional **security driving distance** representing operational margins  
+- $d_{\text{sec}}$ is an optional **security driving distance** representing operational margins
+
+> **Note:** By default, the vehicle energy consumption is estimated using a the same energy consumption factor (kWh/km) for every vehicle. To account for differences between trips, GTFS4EV also supports optional trip-specific consumption factors, allowing users to incorporate externally estimated consumption rates. For further details, see the [ChargingSimulator API documentation](../api/core-classes/chargingsimulator.md) 
 
 ### Charging strategies
 

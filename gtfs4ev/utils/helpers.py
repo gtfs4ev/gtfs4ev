@@ -5,6 +5,7 @@ Some useful generic functions for gtfs4ev classes.
 """
 
 import numpy as np
+import re
 import rasterio
 import pyproj
 from rasterio.mask import mask
@@ -13,7 +14,8 @@ from shapely.geometry import LineString, Point
 from shapely.ops import transform
 
 def check_dataframe(df):
-	""" Returns false if a dataframe contains neither NaN nor empty values.	  
+	""" 
+    Returns false if a dataframe contains neither NaN nor empty values.	  
 	"""
 
 	# Check for NaN values in the entire DataFrame
@@ -32,7 +34,8 @@ def find_closest_point(line, point):
     return line.interpolate(line.project(point))
 
 def crop_raster(raster_path, bbox, output_raster_path):
-    """ Creates a new raster cropped to the bbox
+    """ 
+    Creates a new raster cropped to the bbox
     """
     data_path = raster_path
 
@@ -49,7 +52,8 @@ def crop_raster(raster_path, bbox, output_raster_path):
         dest.write(out_image) 
 
 def length_km(linestring, geodesic = True):
-    """ Calculates the lenght in km of a linestring
+    """ 
+    Calculates the lenght in km of a linestring
     """
     if geodesic: 
     	geod = Geod(ellps="WGS84")
@@ -61,8 +65,9 @@ def length_km(linestring, geodesic = True):
 
     return distance
 
-# Define a mask for the pixel radius
 def mask_within_radius(size, radius):
+    """ Defines a mask for the pixel radius
+    """
     mask = np.zeros((size, size))
     center = size // 2
     for i in range(size):
@@ -70,3 +75,61 @@ def mask_within_radius(size, radius):
             if (i - center)**2 + (j - center)**2 <= radius**2:
                 mask[i, j] = 1
     return mask
+
+def gtfs_time_to_seconds(time_str: str) -> int:
+    """ 
+    Converts a GTFS time string to seconds since the
+    beginning of the service day.
+    Supports extended GTFS times such as 25:30:00.
+    """
+    if not isinstance(time_str, str):
+        raise ValueError(f"Invalid GTFS time: {time_str!r}")
+
+    match = re.fullmatch(
+        r"([0-9]{1,2}):([0-5][0-9]):([0-5][0-9])",
+        time_str,
+    )
+
+    if match is None:
+        raise ValueError(f"Invalid GTFS time: {time_str!r}")
+
+    hours, minutes, seconds = map(int, match.groups())
+
+    return hours * 3600 + minutes * 60 + seconds
+
+def seconds_to_gtfs_time(total_seconds: int) -> str:
+    """
+    Converts service-day seconds to a GTFS time string 
+    without wrapping at midnight.
+    """
+    if (
+        isinstance(total_seconds, bool)
+        or not isinstance(total_seconds, (int, np.integer))
+        or total_seconds < 0
+    ):
+        raise ValueError(
+            "total_seconds must be a non-negative integer."
+        )
+
+    hours, remainder = divmod(int(total_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+def generate_shape_from_stops(stop_locations):
+    """
+    Generates an approximate LineString from ordered stop geometries.
+    Consecutive identical stops are omitted. 
+    """
+    coordinates = []
+    for point in stop_locations:
+        if not isinstance(point, Point) or point.is_empty:
+            raise ValueError("All stop locations must be valid Point geometries.")
+        coordinate = (point.x, point.y)
+        if not coordinates or coordinate != coordinates[-1]:
+            coordinates.append(coordinate)
+
+    if len(set(coordinates)) < 2:
+        raise ValueError("At least two distinct stop locations are required.")
+
+    return LineString(coordinates)
